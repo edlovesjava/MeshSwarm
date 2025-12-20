@@ -3,6 +3,14 @@
  *
  * This example demonstrates the absolute minimum MeshSwarm configuration
  * with ALL optional features disabled for maximum flash memory savings.
+ */
+
+// ESP32 doesn't define LED_BUILTIN, use GPIO2
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+
+/*
  *
  * Flash usage: ~15-20KB (vs ~58-84KB for full build)
  * Savings: ~40-65KB
