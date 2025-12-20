@@ -6,34 +6,49 @@
 
 // ============== CONSTRUCTOR ==============
 MeshSwarm::MeshSwarm()
-  : display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET),
+  : 
+#if MESHSWARM_ENABLE_DISPLAY
+    display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET),
+#endif
     myId(0),
     myName(""),
     myRole("PEER"),
     coordinatorId(0),
     lastHeartbeat(0),
     lastStateSync(0),
+#if MESHSWARM_ENABLE_DISPLAY
     lastDisplayUpdate(0),
+#endif
+#if MESHSWARM_ENABLE_TELEMETRY
     lastTelemetryPush(0),
     lastStateTelemetryPush(0),
-    bootTime(0),
-    telemetryUrl(""),
+#endif
+    bootTime(0)
+#if MESHSWARM_ENABLE_TELEMETRY
+    ,telemetryUrl(""),
     telemetryApiKey(""),
     telemetryInterval(TELEMETRY_INTERVAL),
     telemetryEnabled(false),
-    gatewayMode(false),
-    otaDistributionEnabled(false),
+    gatewayMode(false)
+#endif
+#if MESHSWARM_ENABLE_OTA
+    ,otaDistributionEnabled(false),
     lastOTACheck(0),
     otaFirmwareBuffer(nullptr),
     otaFirmwareSize(0),
     otaLastPartSent(-1),
-    otaTransferStarted(false),
-    lastStateChange(""),
+    otaTransferStarted(false)
+#endif
+#if MESHSWARM_ENABLE_DISPLAY
+    ,lastStateChange(""),
     customStatus("")
+#endif
 {
+#if MESHSWARM_ENABLE_OTA
   // Initialize OTA update info
   currentOTAUpdate.active = false;
   currentOTAUpdate.updateId = 0;
+#endif
 }
 
 // ============== INITIALIZATION ==============
@@ -42,6 +57,7 @@ void MeshSwarm::begin(const char* nodeName) {
 }
 
 void MeshSwarm::begin(const char* prefix, const char* password, uint16_t port, const char* nodeName) {
+#if MESHSWARM_ENABLE_SERIAL
   Serial.begin(115200);
   delay(1000);
 
@@ -50,14 +66,19 @@ void MeshSwarm::begin(const char* prefix, const char* password, uint16_t port, c
   Serial.println("       ESP32 MESH SWARM NODE");
   Serial.println("========================================");
   Serial.println();
+#endif
 
+#if MESHSWARM_ENABLE_DISPLAY
   // Initialize display
   initDisplay();
+#endif
 
   // Stagger startup to reduce collisions
   uint32_t chipId = ESP.getEfuseMac() & 0xFFFF;
   uint32_t startDelay = (chipId % 3) * 500;
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[BOOT] Startup delay: %dms\n", startDelay);
+#endif
   delay(startDelay);
 
   // Initialize mesh
@@ -67,21 +88,28 @@ void MeshSwarm::begin(const char* prefix, const char* password, uint16_t port, c
   myName = nodeName ? String(nodeName) : nodeIdToName(myId);
   bootTime = millis();
 
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[MESH] Node ID: %u\n", myId);
   Serial.printf("[MESH] Name: %s\n", myName.c_str());
   Serial.println();
   Serial.println("Commands: status, peers, state, set <k> <v>, get <k>, sync, reboot");
   Serial.println("----------------------------------------");
   Serial.println();
+#endif
 }
 
+#if MESHSWARM_ENABLE_DISPLAY
 void MeshSwarm::initDisplay() {
   Wire.begin(I2C_SDA, I2C_SCL);
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.println("[OLED] Init failed!");
+#endif
   } else {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.println("[OLED] Initialized");
+#endif
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
@@ -91,6 +119,7 @@ void MeshSwarm::initDisplay() {
     display.display();
   }
 }
+#endif
 
 void MeshSwarm::initMesh(const char* prefix, const char* password, uint16_t port) {
   mesh.setDebugMsgTypes(ERROR | STARTUP);
@@ -133,12 +162,15 @@ void MeshSwarm::update() {
     lastStateSync = now;
   }
 
+#if MESHSWARM_ENABLE_DISPLAY
   // Display update
   if (now - lastDisplayUpdate >= DISPLAY_INTERVAL) {
     updateDisplay();
     lastDisplayUpdate = now;
   }
+#endif
 
+#if MESHSWARM_ENABLE_TELEMETRY
   // Telemetry push
   if (telemetryEnabled && (now - lastTelemetryPush >= telemetryInterval)) {
     if (gatewayMode) {
@@ -150,16 +182,21 @@ void MeshSwarm::update() {
     }
     lastTelemetryPush = now;
   }
+#endif
 
+#if MESHSWARM_ENABLE_SERIAL
   // Serial commands
   if (Serial.available()) {
     processSerial();
   }
+#endif
 
+#if MESHSWARM_ENABLE_CALLBACKS
   // Custom loop callbacks
   for (auto& cb : loopCallbacks) {
     cb();
   }
+#endif
 }
 
 // ============== STATE MANAGEMENT ==============
@@ -185,13 +222,18 @@ bool MeshSwarm::setState(const String& key, const String& value) {
 
   triggerWatchers(key, value, oldValue);
   broadcastState(key);
+#if MESHSWARM_ENABLE_DISPLAY
   lastStateChange = key + "=" + value;
+#endif
 
+#if MESHSWARM_ENABLE_TELEMETRY
   // Push telemetry on state change (with debouncing)
   unsigned long now = millis();
   if (telemetryEnabled) {
     if (now - lastStateTelemetryPush >= STATE_TELEMETRY_MIN_INTERVAL) {
+#if MESHSWARM_ENABLE_SERIAL
       Serial.printf("[TELEM] State change push for %s=%s\n", key.c_str(), value.c_str());
+#endif
       if (gatewayMode) {
         pushTelemetry();
       } else {
@@ -200,10 +242,13 @@ bool MeshSwarm::setState(const String& key, const String& value) {
       lastTelemetryPush = now;
       lastStateTelemetryPush = now;
     } else {
+#if MESHSWARM_ENABLE_SERIAL
       Serial.printf("[TELEM] Debounced %s=%s (wait %lums)\n", key.c_str(), value.c_str(),
                     STATE_TELEMETRY_MIN_INTERVAL - (now - lastStateTelemetryPush));
+#endif
     }
   }
+#endif
 
   return true;
 }
@@ -236,15 +281,20 @@ bool MeshSwarm::setStates(std::initializer_list<std::pair<String, String>> state
 
     triggerWatchers(key, value, oldValue);
     broadcastState(key);
+#if MESHSWARM_ENABLE_DISPLAY
     lastStateChange = key + "=" + value;
+#endif
     anyChanged = true;
   }
 
+#if MESHSWARM_ENABLE_TELEMETRY
   // Push telemetry once for all changes (with debouncing)
   if (anyChanged && telemetryEnabled) {
     unsigned long now = millis();
     if (now - lastStateTelemetryPush >= STATE_TELEMETRY_MIN_INTERVAL) {
+#if MESHSWARM_ENABLE_SERIAL
       Serial.println("[TELEM] State change push (batch)");
+#endif
       if (gatewayMode) {
         pushTelemetry();
       } else {
@@ -253,10 +303,13 @@ bool MeshSwarm::setStates(std::initializer_list<std::pair<String, String>> state
       lastTelemetryPush = now;
       lastStateTelemetryPush = now;
     } else {
+#if MESHSWARM_ENABLE_SERIAL
       Serial.printf("[TELEM] Debounced batch (wait %lums)\n",
                     STATE_TELEMETRY_MIN_INTERVAL - (now - lastStateTelemetryPush));
+#endif
     }
   }
+#endif
 
   return anyChanged;
 }
@@ -360,10 +413,14 @@ void MeshSwarm::handleStateSet(uint32_t from, JsonObject& data) {
     sharedState[key] = entry;
 
     triggerWatchers(key, value, oldValue);
+#if MESHSWARM_ENABLE_DISPLAY
     lastStateChange = key + "=" + value;
+#endif
 
+#if MESHSWARM_ENABLE_SERIAL
     Serial.printf("[STATE] %s = %s (v%u from %s)\n",
                   key.c_str(), value.c_str(), version, nodeIdToName(origin).c_str());
+#endif
   }
 }
 
@@ -374,8 +431,10 @@ void MeshSwarm::handleStateSync(uint32_t from, JsonObject& data) {
     handleStateSet(from, entry);
   }
 
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[SYNC] Received %d state entries from %s\n",
                 arr.size(), nodeIdToName(from).c_str());
+#endif
 }
 
 // ============== MESH CALLBACKS ==============
@@ -384,7 +443,9 @@ void MeshSwarm::onReceive(uint32_t from, String &msg) {
   DeserializationError err = deserializeJson(doc, msg);
 
   if (err) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.printf("[RX] JSON error from %u\n", from);
+#endif
     return;
   }
 
@@ -419,11 +480,19 @@ void MeshSwarm::onReceive(uint32_t from, String &msg) {
     case MSG_COMMAND:
       break;
 
+#if MESHSWARM_ENABLE_TELEMETRY
     case MSG_TELEMETRY:
       // Only gateway handles telemetry messages
       if (gatewayMode) {
         handleTelemetry(from, data);
       }
+      break;
+#endif
+
+    default:
+      break;
+  }
+}
       break;
   }
 }
@@ -502,21 +571,29 @@ int MeshSwarm::getPeerCount() {
 }
 
 // ============== CUSTOMIZATION ==============
+#if MESHSWARM_ENABLE_CALLBACKS
 void MeshSwarm::onLoop(LoopCallback callback) {
   loopCallbacks.push_back(callback);
 }
 
+#if MESHSWARM_ENABLE_SERIAL
 void MeshSwarm::onSerialCommand(SerialHandler handler) {
   serialHandlers.push_back(handler);
 }
+#endif
 
+#if MESHSWARM_ENABLE_DISPLAY
 void MeshSwarm::onDisplayUpdate(DisplayHandler handler) {
   displayHandlers.push_back(handler);
 }
+#endif
+#endif // MESHSWARM_ENABLE_CALLBACKS
 
+#if MESHSWARM_ENABLE_DISPLAY
 void MeshSwarm::setStatusLine(const String& status) {
   customStatus = status;
 }
+#endif
 
 void MeshSwarm::setHeartbeatData(const String& key, int value) {
   heartbeatExtras[key] = value;
@@ -543,6 +620,7 @@ String MeshSwarm::nodeIdToName(uint32_t id) {
   return "N" + hex;
 }
 
+#if MESHSWARM_ENABLE_DISPLAY
 // ============== DISPLAY ==============
 void MeshSwarm::updateDisplay() {
   display.clearDisplay();
@@ -563,6 +641,7 @@ void MeshSwarm::updateDisplay() {
     display.println("---------------------");
   }
 
+#if MESHSWARM_ENABLE_CALLBACKS
   // Call custom display handlers (lines 4+)
   int startLine = 3;
   for (auto& handler : displayHandlers) {
@@ -571,6 +650,7 @@ void MeshSwarm::updateDisplay() {
 
   // If no custom handlers, show state values
   if (displayHandlers.empty()) {
+#endif
     // Lines 4-7: State values (up to 4)
     int shown = 0;
     for (auto& kv : sharedState) {
@@ -590,11 +670,15 @@ void MeshSwarm::updateDisplay() {
     if (lastStateChange.length() > 0) {
       display.printf("Last:%s\n", lastStateChange.substring(0, 16).c_str());
     }
+#if MESHSWARM_ENABLE_CALLBACKS
   }
+#endif
 
   display.display();
 }
+#endif // MESHSWARM_ENABLE_DISPLAY
 
+#if MESHSWARM_ENABLE_SERIAL
 // ============== SERIAL COMMANDS ==============
 void MeshSwarm::processSerial() {
   String input = Serial.readStringUntil('\n');
@@ -602,12 +686,14 @@ void MeshSwarm::processSerial() {
 
   if (input.length() == 0) return;
 
+#if MESHSWARM_ENABLE_CALLBACKS
   // Try custom handlers first
   for (auto& handler : serialHandlers) {
     if (handler(input)) {
       return;  // Handler consumed the command
     }
   }
+#endif
 
   // Built-in commands
   if (input == "status") {
@@ -658,6 +744,7 @@ void MeshSwarm::processSerial() {
     broadcastFullState();
     Serial.println("[SYNC] Broadcast full state");
   }
+#if MESHSWARM_ENABLE_DISPLAY
   else if (input == "scan") {
     Serial.println("\n--- I2C SCAN ---");
     int found = 0;
@@ -670,9 +757,11 @@ void MeshSwarm::processSerial() {
     }
     Serial.printf("Found %d device(s)\n\n", found);
   }
+#endif
   else if (input == "reboot") {
     ESP.restart();
   }
+#if MESHSWARM_ENABLE_TELEMETRY
   else if (input == "telem") {
     Serial.println("\n--- TELEMETRY STATUS ---");
     Serial.printf("Enabled: %s\n", telemetryEnabled ? "YES" : "NO");
@@ -697,34 +786,49 @@ void MeshSwarm::processSerial() {
       Serial.println("[TELEM] Telemetry not enabled");
     }
   }
+#endif
   else {
-    Serial.println("Commands: status, peers, state, set <k> <v>, get <k>, sync, scan, telem, push, reboot");
+    Serial.println("Commands: status, peers, state, set <k> <v>, get <k>, sync, scan"
+#if MESHSWARM_ENABLE_TELEMETRY
+      ", telem, push"
+#endif
+      ", reboot");
   }
 }
+#endif // MESHSWARM_ENABLE_SERIAL
 
+#if MESHSWARM_ENABLE_TELEMETRY
 // ============== TELEMETRY ==============
 void MeshSwarm::setTelemetryServer(const char* url, const char* apiKey) {
   telemetryUrl = String(url);
   if (apiKey != nullptr) {
     telemetryApiKey = String(apiKey);
   }
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[TELEM] Server: %s\n", telemetryUrl.c_str());
+#endif
 }
 
 void MeshSwarm::setTelemetryInterval(unsigned long ms) {
   telemetryInterval = ms;
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[TELEM] Interval: %lu ms\n", telemetryInterval);
+#endif
 }
 
 void MeshSwarm::enableTelemetry(bool enable) {
   telemetryEnabled = enable;
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[TELEM] %s\n", enable ? "Enabled" : "Disabled");
+#endif
 }
 
 void MeshSwarm::connectToWiFi(const char* ssid, const char* password) {
   // painlessMesh supports station mode alongside mesh
   mesh.stationManual(ssid, password);
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[WIFI] Connecting to %s...\n", ssid);
+#endif
 }
 
 bool MeshSwarm::isWiFiConnected() {
@@ -737,7 +841,9 @@ void MeshSwarm::pushTelemetry() {
   }
 
   if (!isWiFiConnected()) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.println("[TELEM] WiFi not connected, skipping push");
+#endif
     return;
   }
 
@@ -770,18 +876,22 @@ void MeshSwarm::pushTelemetry() {
   serializeJson(doc, payload);
 
   int httpCode = http.POST(payload);
+#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200 || httpCode == 201) {
     Serial.println("[TELEM] Push OK");
   } else {
     Serial.printf("[TELEM] Push failed: %d\n", httpCode);
   }
+#endif
   http.end();
 }
 
 // ============== GATEWAY MODE ==============
 void MeshSwarm::setGatewayMode(bool enable) {
   gatewayMode = enable;
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[GATEWAY] %s\n", enable ? "Enabled" : "Disabled");
+#endif
 }
 
 void MeshSwarm::sendTelemetryToGateway() {
@@ -804,24 +914,30 @@ void MeshSwarm::sendTelemetryToGateway() {
   String msg = createMsg(MSG_TELEMETRY, data);
   mesh.sendBroadcast(msg);
 
+#if MESHSWARM_ENABLE_SERIAL
   Serial.println("[TELEM] Sent to gateway via mesh");
+#endif
 }
 
 void MeshSwarm::handleTelemetry(uint32_t from, JsonObject& data) {
   // Gateway received telemetry from another node - push to server
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[GATEWAY] Received telemetry from %s\n", nodeIdToName(from).c_str());
 
   // Debug: dump the telemetry payload
   String debugPayload;
   serializeJson(data, debugPayload);
   Serial.printf("[GATEWAY] Payload: %s\n", debugPayload.c_str());
+#endif
 
   pushTelemetryForNode(from, data);
 }
 
 void MeshSwarm::pushTelemetryForNode(uint32_t nodeId, JsonObject& data) {
   if (!isWiFiConnected() || telemetryUrl.length() == 0) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.println("[GATEWAY] Cannot push - WiFi not connected or no server URL");
+#endif
     return;
   }
 
@@ -839,18 +955,24 @@ void MeshSwarm::pushTelemetryForNode(uint32_t nodeId, JsonObject& data) {
   serializeJson(data, payload);
 
   int httpCode = http.POST(payload);
+#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200 || httpCode == 201) {
     Serial.printf("[GATEWAY] Push OK for %s\n", nodeIdToName(nodeId).c_str());
   } else {
     Serial.printf("[GATEWAY] Push failed for %s: %d\n", nodeIdToName(nodeId).c_str(), httpCode);
   }
+#endif
   http.end();
 }
+#endif // MESHSWARM_ENABLE_TELEMETRY
 
+#if MESHSWARM_ENABLE_OTA
 // ============== OTA DISTRIBUTION (GATEWAY) ==============
 void MeshSwarm::enableOTADistribution(bool enable) {
   otaDistributionEnabled = enable;
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[OTA] Distribution %s\n", enable ? "enabled" : "disabled");
+#endif
 }
 
 void MeshSwarm::checkForOTAUpdates() {
@@ -870,7 +992,9 @@ void MeshSwarm::checkForOTAUpdates() {
   }
 
   if (!isWiFiConnected()) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.println("[OTA] WiFi not connected, skipping check");
+#endif
     return;
   }
 
@@ -891,7 +1015,9 @@ bool MeshSwarm::pollPendingOTAUpdates() {
 
   // Don't start a new update if we're actively transferring
   if (currentOTAUpdate.active && otaTransferStarted) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.println("[OTA] Transfer in progress, skipping poll");
+#endif
     return false;
   }
 
@@ -903,7 +1029,9 @@ bool MeshSwarm::pollPendingOTAUpdates() {
 
   int httpCode = http.GET();
   if (httpCode != 200) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.printf("[OTA] Poll failed: %d\n", httpCode);
+#endif
     http.end();
     return false;
   }
@@ -915,7 +1043,9 @@ bool MeshSwarm::pollPendingOTAUpdates() {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, payload);
   if (err) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.printf("[OTA] JSON parse error: %s\n", err.c_str());
+#endif
     return false;
   }
 
@@ -939,11 +1069,13 @@ bool MeshSwarm::pollPendingOTAUpdates() {
   currentOTAUpdate.force = update["force"] | false;
   currentOTAUpdate.active = true;
 
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[OTA] Found update: id=%d, type=%s, version=%s, parts=%d\n",
                 currentOTAUpdate.updateId,
                 currentOTAUpdate.nodeType.c_str(),
                 currentOTAUpdate.version.c_str(),
                 currentOTAUpdate.numParts);
+#endif
 
   return true;
 }
@@ -958,22 +1090,28 @@ bool MeshSwarm::downloadOTAFirmware(int firmwareId) {
   // Store firmware size for the callback
   otaFirmwareSize = currentOTAUpdate.sizeBytes;
 
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[OTA] Firmware %d ready for distribution (%d bytes, %d parts)\n",
                 firmwareId, otaFirmwareSize, currentOTAUpdate.numParts);
+#endif
 
   return true;
 }
 
 void MeshSwarm::startOTADistribution() {
   if (otaFirmwareSize == 0) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.println("[OTA] No firmware size set");
+#endif
     currentOTAUpdate.active = false;
     return;
   }
 
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[OTA] Starting distribution for %s v%s\n",
                 currentOTAUpdate.nodeType.c_str(),
                 currentOTAUpdate.version.c_str());
+#endif
 
   // Reset tracking variables
   otaLastPartSent = -1;
@@ -1009,7 +1147,9 @@ void MeshSwarm::startOTADistribution() {
 
     int httpCode = http.GET();
     if (httpCode != 206 && httpCode != 200) {
+#if MESHSWARM_ENABLE_SERIAL
       Serial.printf("[OTA] Chunk fetch failed: %d (part %d)\n", httpCode, pkg.partNo);
+#endif
       http.end();
       return (size_t)0;
     }
@@ -1029,22 +1169,30 @@ void MeshSwarm::startOTADistribution() {
     http.end();
 
     if (bytesRead != chunkSize) {
+#if MESHSWARM_ENABLE_SERIAL
       Serial.printf("[OTA] Incomplete chunk: %d/%d bytes (part %d)\n", bytesRead, chunkSize, pkg.partNo);
+#endif
       return (size_t)0;
     }
 
     // Track transfer progress
     if (!otaTransferStarted) {
       otaTransferStarted = true;
+#if MESHSWARM_ENABLE_SERIAL
       Serial.println("[OTA] Transfer started - node is receiving firmware");
+#endif
     }
     otaLastPartSent = pkg.partNo;
 
+#if MESHSWARM_ENABLE_SERIAL
     Serial.printf("[OTA] Sent part %d/%d\n", pkg.partNo + 1, currentOTAUpdate.numParts);
+#endif
 
     // Check if this was the last part
     if (pkg.partNo + 1 >= currentOTAUpdate.numParts) {
+#if MESHSWARM_ENABLE_SERIAL
       Serial.println("[OTA] All parts sent - transfer complete!");
+#endif
       // Report completion to server
       reportOTAComplete(currentOTAUpdate.updateId);
       currentOTAUpdate.active = false;
@@ -1064,14 +1212,18 @@ void MeshSwarm::startOTADistribution() {
   );
 
   if (otaTask) {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.printf("[OTA] Offered to nodes with role=%s\n", currentOTAUpdate.nodeType.c_str());
     Serial.println("[OTA] Waiting for nodes to request firmware...");
+#endif
     // Note: painlessMesh will handle distribution automatically
     // The update remains active - chunks will be sent via the callback
     // We do NOT mark complete here - that happens when transfer actually occurs
     // or when a new update supersedes this one
   } else {
+#if MESHSWARM_ENABLE_SERIAL
     Serial.println("[OTA] Failed to offer update");
+#endif
     reportOTAFail(currentOTAUpdate.updateId, "Failed to offer update via mesh");
     currentOTAUpdate.active = false;
   }
@@ -1090,11 +1242,13 @@ void MeshSwarm::reportOTAStart(int updateId) {
   http.setTimeout(5000);
 
   int httpCode = http.POST("");
+#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200) {
     Serial.printf("[OTA] Reported start for update %d\n", updateId);
   } else {
     Serial.printf("[OTA] Failed to report start: %d\n", httpCode);
   }
+#endif
   http.end();
 }
 
@@ -1123,9 +1277,11 @@ void MeshSwarm::reportOTAProgress(const String& nodeId, int currentPart, int tot
   serializeJson(doc, payload);
 
   int httpCode = http.POST(payload);
+#if MESHSWARM_ENABLE_SERIAL
   if (httpCode != 200) {
     Serial.printf("[OTA] Failed to report progress: %d\n", httpCode);
   }
+#endif
   http.end();
 }
 
@@ -1142,11 +1298,13 @@ void MeshSwarm::reportOTAComplete(int updateId) {
   http.setTimeout(5000);
 
   int httpCode = http.POST("");
+#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200) {
     Serial.printf("[OTA] Reported complete for update %d\n", updateId);
   } else {
     Serial.printf("[OTA] Failed to report complete: %d\n", httpCode);
   }
+#endif
   http.end();
 }
 
@@ -1163,11 +1321,13 @@ void MeshSwarm::reportOTAFail(int updateId, const String& error) {
   http.setTimeout(5000);
 
   int httpCode = http.POST("");
+#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200) {
     Serial.printf("[OTA] Reported failure for update %d\n", updateId);
   } else {
     Serial.printf("[OTA] Failed to report failure: %d\n", httpCode);
   }
+#endif
   http.end();
 }
 
@@ -1182,5 +1342,8 @@ void MeshSwarm::cleanupOTABuffer() {
 // ============== OTA RECEPTION (NODE) ==============
 void MeshSwarm::enableOTAReceive(const String& role) {
   mesh.initOTAReceive(role.c_str());
+#if MESHSWARM_ENABLE_SERIAL
   Serial.printf("[OTA] Receiver enabled for role: %s\n", role.c_str());
+#endif
 }
+#endif // MESHSWARM_ENABLE_OTA
