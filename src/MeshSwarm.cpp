@@ -15,33 +15,33 @@ MeshSwarm::MeshSwarm()
     myRole("PEER"),
     coordinatorId(0),
     lastHeartbeat(0),
-    lastStateSync(0),
+    lastStateSync(0)
 #if MESHSWARM_ENABLE_DISPLAY
-    lastDisplayUpdate(0),
+    ,lastDisplayUpdate(0)
 #endif
 #if MESHSWARM_ENABLE_TELEMETRY
-    lastTelemetryPush(0),
-    lastStateTelemetryPush(0),
+    ,lastTelemetryPush(0)
+    ,lastStateTelemetryPush(0)
 #endif
-    bootTime(0)
+    ,bootTime(0)
 #if MESHSWARM_ENABLE_TELEMETRY
-    ,telemetryUrl(""),
-    telemetryApiKey(""),
-    telemetryInterval(TELEMETRY_INTERVAL),
-    telemetryEnabled(false),
-    gatewayMode(false)
+    ,telemetryUrl("")
+    ,telemetryApiKey("")
+    ,telemetryInterval(TELEMETRY_INTERVAL)
+    ,telemetryEnabled(false)
+    ,gatewayMode(false)
 #endif
 #if MESHSWARM_ENABLE_OTA
-    ,otaDistributionEnabled(false),
-    lastOTACheck(0),
-    otaFirmwareBuffer(nullptr),
-    otaFirmwareSize(0),
-    otaLastPartSent(-1),
-    otaTransferStarted(false)
+    ,otaDistributionEnabled(false)
+    ,lastOTACheck(0)
+    ,otaFirmwareBuffer(nullptr)
+    ,otaFirmwareSize(0)
+    ,otaLastPartSent(-1)
+    ,otaTransferStarted(false)
 #endif
 #if MESHSWARM_ENABLE_DISPLAY
-    ,lastStateChange(""),
-    customStatus("")
+    ,lastStateChange("")
+    ,customStatus("")
 #endif
 {
 #if MESHSWARM_ENABLE_OTA

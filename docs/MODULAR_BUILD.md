@@ -209,12 +209,18 @@ build_flags =
 
 ## Feature Dependencies
 
-Some features depend on others and will automatically be enabled if needed:
+All features are independent and can be enabled/disabled without affecting others:
 
-- **Serial callbacks** require `MESHSWARM_ENABLE_CALLBACKS`
-- **Display callbacks** require `MESHSWARM_ENABLE_CALLBACKS`
+- **Display** works standalone (basic display functionality)
+- **Serial** works standalone (built-in commands)
+- **Telemetry** works standalone (HTTP communication)
+- **OTA** works standalone (firmware updates)
+- **Callbacks** enhance other features when enabled together:
+  - `onDisplayUpdate()` requires both `DISPLAY` and `CALLBACKS`
+  - `onSerialCommand()` requires both `SERIAL` and `CALLBACKS`
+  - `onLoop()` requires `CALLBACKS`
 
-The library will emit compile-time warnings if dependencies are missing and automatically enable required features.
+Disabling callbacks will disable custom handlers but not basic feature functionality.
 
 ## Compile-Time Messages
 

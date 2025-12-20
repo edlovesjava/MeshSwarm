@@ -59,19 +59,8 @@
 
 // ============== FEATURE DEPENDENCY CHECKS ==============
 
-// Serial callbacks require callbacks to be enabled
-#if MESHSWARM_ENABLE_SERIAL && !MESHSWARM_ENABLE_CALLBACKS
-#pragma message "Warning: MESHSWARM_ENABLE_SERIAL requires MESHSWARM_ENABLE_CALLBACKS. Enabling callbacks."
-#undef MESHSWARM_ENABLE_CALLBACKS
-#define MESHSWARM_ENABLE_CALLBACKS 1
-#endif
-
-// Display callbacks require callbacks to be enabled
-#if MESHSWARM_ENABLE_DISPLAY && !MESHSWARM_ENABLE_CALLBACKS
-#pragma message "Warning: MESHSWARM_ENABLE_DISPLAY requires MESHSWARM_ENABLE_CALLBACKS. Enabling callbacks."
-#undef MESHSWARM_ENABLE_CALLBACKS
-#define MESHSWARM_ENABLE_CALLBACKS 1
-#endif
+// Note: Callbacks are optional but enhance functionality when enabled with features
+// Display and Serial work without callbacks, but callbacks allow customization
 
 // ============== COMPILE-TIME INFORMATION ==============
 
