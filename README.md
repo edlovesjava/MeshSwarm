@@ -10,10 +10,30 @@ A self-organizing ESP32 mesh network library with distributed shared state synch
 - **Distributed shared state**: Key-value store synchronized across all nodes
 - **State watchers**: Register callbacks to react to state changes
 - **Conflict resolution**: Version numbers + origin ID ensure deterministic convergence
-- **OTA updates**: Receive firmware updates via mesh from gateway
-- **Telemetry**: Send metrics to server via gateway node
-- **OLED display**: Built-in support for SSD1306 128x64 displays
-- **Serial console**: Built-in command interface for debugging and control
+- **OTA updates**: Receive firmware updates via mesh from gateway *(optional)*
+- **Telemetry**: Send metrics to server via gateway node *(optional)*
+- **OLED display**: Built-in support for SSD1306 128x64 displays *(optional)*
+- **Serial console**: Built-in command interface for debugging and control *(optional)*
+- **Modular architecture**: Disable unused features to reduce flash usage by up to 65KB
+
+## Modular Build System
+
+MeshSwarm supports **feature flags** to disable optional components and reduce flash memory usage:
+
+```cpp
+// Disable features before including MeshSwarm.h
+#define MESHSWARM_ENABLE_DISPLAY 0    // Save ~10-15KB
+#define MESHSWARM_ENABLE_SERIAL 0     // Save ~8-12KB
+#define MESHSWARM_ENABLE_TELEMETRY 0  // Save ~12-18KB
+#define MESHSWARM_ENABLE_OTA 0        // Save ~15-20KB
+#include <MeshSwarm.h>
+```
+
+**Flash savings:**
+- Full build: 58-84KB
+- Core only: 15-20KB (**saves ~40-65KB!**)
+
+See **[docs/MODULAR_BUILD.md](docs/MODULAR_BUILD.md)** for complete documentation.
 
 ## Installation
 
@@ -331,7 +351,9 @@ This library includes the following example sketches (File → Examples → Mesh
 
 | Example | Description |
 |---------|-------------|
-| **BasicNode** | Minimal mesh node with OLED display |
+| **BasicNode** | Full-featured mesh node with OLED display (default config) |
+| **MinimalNode** | Core-only build (~15-20KB) - no display, serial, telemetry, or OTA |
+| **DisplayOnlyNode** | Core + Display (~30-40KB) - visual feedback without extras |
 | **ButtonNode** | Button input that publishes to mesh |
 | **LedNode** | LED controlled by mesh state |
 | **SensorNode** | DHT11 temperature/humidity sensor |

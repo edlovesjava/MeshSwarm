@@ -7,6 +7,17 @@
  * - OLED display
  * - Serial commands
  *
+ * This example uses the DEFAULT configuration with ALL features enabled.
+ * To reduce flash memory usage, you can disable features before including MeshSwarm.h:
+ *
+ *   #define MESHSWARM_ENABLE_DISPLAY 0    // Disable OLED display support
+ *   #define MESHSWARM_ENABLE_SERIAL 0     // Disable serial commands
+ *   #define MESHSWARM_ENABLE_TELEMETRY 0  // Disable HTTP telemetry
+ *   #define MESHSWARM_ENABLE_OTA 0        // Disable OTA updates
+ *   #include <MeshSwarm.h>
+ *
+ * See docs/MODULAR_BUILD.md for more information on modular builds.
+ *
  * Hardware:
  * - ESP32
  * - SSD1306 OLED (I2C: SDA=21, SCL=22)
