@@ -98,28 +98,7 @@ void MeshSwarm::begin(const char* prefix, const char* password, uint16_t port, c
 #endif
 }
 
-#if MESHSWARM_ENABLE_DISPLAY
-void MeshSwarm::initDisplay() {
-  Wire.begin(I2C_SDA, I2C_SCL);
-
-  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.println("[OLED] Init failed!");
-#endif
-  } else {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.println("[OLED] Initialized");
-#endif
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(0, 0);
-    display.println("Mesh Swarm");
-    display.println("Starting...");
-    display.display();
-  }
-}
-#endif
+// initDisplay() is defined in features/MeshSwarmDisplay.inc
 
 void MeshSwarm::initMesh(const char* prefix, const char* password, uint16_t port) {
   mesh.setDebugMsgTypes(ERROR | STARTUP);
@@ -493,9 +472,6 @@ void MeshSwarm::onReceive(uint32_t from, String &msg) {
       break;
   }
 }
-      break;
-  }
-}
 
 void MeshSwarm::onNewConnection(uint32_t nodeId) {
   Serial.printf("[MESH] + Connected: %s\n", nodeIdToName(nodeId).c_str());
@@ -571,29 +547,8 @@ int MeshSwarm::getPeerCount() {
 }
 
 // ============== CUSTOMIZATION ==============
-#if MESHSWARM_ENABLE_CALLBACKS
-void MeshSwarm::onLoop(LoopCallback callback) {
-  loopCallbacks.push_back(callback);
-}
-
-#if MESHSWARM_ENABLE_SERIAL
-void MeshSwarm::onSerialCommand(SerialHandler handler) {
-  serialHandlers.push_back(handler);
-}
-#endif
-
-#if MESHSWARM_ENABLE_DISPLAY
-void MeshSwarm::onDisplayUpdate(DisplayHandler handler) {
-  displayHandlers.push_back(handler);
-}
-#endif
-#endif // MESHSWARM_ENABLE_CALLBACKS
-
-#if MESHSWARM_ENABLE_DISPLAY
-void MeshSwarm::setStatusLine(const String& status) {
-  customStatus = status;
-}
-#endif
+// onLoop(), onSerialCommand(), onDisplayUpdate() defined in features/MeshSwarmCallbacks.inc
+// setStatusLine() defined in features/MeshSwarmDisplay.inc
 
 void MeshSwarm::setHeartbeatData(const String& key, int value) {
   heartbeatExtras[key] = value;
@@ -623,8 +578,9 @@ String MeshSwarm::nodeIdToName(uint32_t id) {
 
 // ============== FEATURE MODULE INCLUDES ==============
 // Feature implementations are conditionally compiled based on flags
-#include "features/MeshSwarmDisplay.cpp"
-#include "features/MeshSwarmSerial.cpp"
-#include "features/MeshSwarmCallbacks.cpp"
-#include "features/MeshSwarmTelemetry.cpp"
-#include "features/MeshSwarmOTA.cpp"
+// Using .inc extension to prevent Arduino from compiling them separately
+#include "features/MeshSwarmDisplay.inc"
+#include "features/MeshSwarmSerial.inc"
+#include "features/MeshSwarmCallbacks.inc"
+#include "features/MeshSwarmTelemetry.inc"
+#include "features/MeshSwarmOTA.inc"
