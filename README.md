@@ -380,6 +380,10 @@ This library includes the following example sketches (File → Examples → Mesh
 | **WatcherNode** | Observer that logs all state changes |
 | **GatewayNode** | WiFi bridge with telemetry and OTA |
 
+## Sample image of nodes
+
+![Swarm sample](IMG_0619.jpg "Swarm Sample")
+
 ## Related Projects
 
 - [iotmesh](https://github.com/edlovesjava/iotmesh) - Complete IoT mesh application with server, dashboard, and OTA system
