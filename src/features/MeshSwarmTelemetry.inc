@@ -1,6 +1,6 @@
 /*
  * MeshSwarm Library - Telemetry Module
- * 
+ *
  * HTTP telemetry pushing and gateway mode functionality.
  * Only compiled when MESHSWARM_ENABLE_TELEMETRY is enabled.
  */
@@ -15,31 +15,23 @@ void MeshSwarm::setTelemetryServer(const char* url, const char* apiKey) {
   if (apiKey != nullptr) {
     telemetryApiKey = String(apiKey);
   }
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[TELEM] Server: %s\n", telemetryUrl.c_str());
-#endif
+  TELEM_LOG("Server: %s", telemetryUrl.c_str());
 }
 
 void MeshSwarm::setTelemetryInterval(unsigned long ms) {
   telemetryInterval = ms;
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[TELEM] Interval: %lu ms\n", telemetryInterval);
-#endif
+  TELEM_LOG("Interval: %lu ms", telemetryInterval);
 }
 
 void MeshSwarm::enableTelemetry(bool enable) {
   telemetryEnabled = enable;
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[TELEM] %s\n", enable ? "Enabled" : "Disabled");
-#endif
+  TELEM_LOG("%s", enable ? "Enabled" : "Disabled");
 }
 
 void MeshSwarm::connectToWiFi(const char* ssid, const char* password) {
   // painlessMesh supports station mode alongside mesh
   mesh.stationManual(ssid, password);
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[WIFI] Connecting to %s...\n", ssid);
-#endif
+  MESH_LOG("WiFi connecting to %s...", ssid);
 }
 
 bool MeshSwarm::isWiFiConnected() {
@@ -53,9 +45,7 @@ void MeshSwarm::pushTelemetry() {
   }
 
   if (!isWiFiConnected()) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.println("[TELEM] WiFi not connected, skipping push");
-#endif
+    TELEM_LOG_D("WiFi not connected, skipping push");
     return;
   }
 
@@ -88,22 +78,18 @@ void MeshSwarm::pushTelemetry() {
   serializeJson(doc, payload);
 
   int httpCode = http.POST(payload);
-#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200 || httpCode == 201) {
-    Serial.println("[TELEM] Push OK");
+    TELEM_LOG_D("Push OK");
   } else {
-    Serial.printf("[TELEM] Push failed: %d\n", httpCode);
+    TELEM_LOG("Push failed: %d", httpCode);
   }
-#endif
   http.end();
 }
 
 // ============== GATEWAY MODE ==============
 void MeshSwarm::setGatewayMode(bool enable) {
   gatewayMode = enable;
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[GATEWAY] %s\n", enable ? "Enabled" : "Disabled");
-#endif
+  GATEWAY_LOG("%s", enable ? "Enabled" : "Disabled");
 }
 
 void MeshSwarm::sendTelemetryToGateway() {
@@ -126,16 +112,14 @@ void MeshSwarm::sendTelemetryToGateway() {
   String msg = createMsg(MSG_TELEMETRY, data);
   mesh.sendBroadcast(msg);
 
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.println("[TELEM] Sent to gateway via mesh");
-#endif
+  TELEM_LOG_D("Sent to gateway via mesh");
 }
 
 void MeshSwarm::handleTelemetry(uint32_t from, JsonObject& data) {
   // Gateway received telemetry from another node - push to server
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[GATEWAY] Received telemetry from %s\n", nodeIdToName(from).c_str());
+  GATEWAY_LOG("Received telemetry from %s", nodeIdToName(from).c_str());
 
+#if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_DEBUG
   // Debug: dump the telemetry payload
   String debugPayload;
   serializeJson(data, debugPayload);
@@ -147,9 +131,7 @@ void MeshSwarm::handleTelemetry(uint32_t from, JsonObject& data) {
 
 void MeshSwarm::pushTelemetryForNode(uint32_t nodeId, JsonObject& data) {
   if (!isWiFiConnected() || telemetryUrl.length() == 0) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.println("[GATEWAY] Cannot push - WiFi not connected or no server URL");
-#endif
+    GATEWAY_LOG("Cannot push - WiFi not connected or no server URL");
     return;
   }
 
@@ -167,13 +149,11 @@ void MeshSwarm::pushTelemetryForNode(uint32_t nodeId, JsonObject& data) {
   serializeJson(data, payload);
 
   int httpCode = http.POST(payload);
-#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200 || httpCode == 201) {
-    Serial.printf("[GATEWAY] Push OK for %s\n", nodeIdToName(nodeId).c_str());
+    GATEWAY_LOG("Push OK for %s", nodeIdToName(nodeId).c_str());
   } else {
-    Serial.printf("[GATEWAY] Push failed for %s: %d\n", nodeIdToName(nodeId).c_str(), httpCode);
+    GATEWAY_LOG("Push failed for %s: %d", nodeIdToName(nodeId).c_str(), httpCode);
   }
-#endif
   http.end();
 }
 

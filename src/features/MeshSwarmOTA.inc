@@ -1,6 +1,6 @@
 /*
  * MeshSwarm Library - OTA Module
- * 
+ *
  * OTA (Over-The-Air) firmware distribution functionality.
  * Only compiled when MESHSWARM_ENABLE_OTA is enabled.
  */
@@ -12,9 +12,7 @@
 // ============== OTA DISTRIBUTION (GATEWAY) ==============
 void MeshSwarm::enableOTADistribution(bool enable) {
   otaDistributionEnabled = enable;
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[OTA] Distribution %s\n", enable ? "enabled" : "disabled");
-#endif
+  OTA_LOG("Distribution %s", enable ? "enabled" : "disabled");
 }
 
 void MeshSwarm::checkForOTAUpdates() {
@@ -34,9 +32,7 @@ void MeshSwarm::checkForOTAUpdates() {
   }
 
   if (!isWiFiConnected()) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.println("[OTA] WiFi not connected, skipping check");
-#endif
+    OTA_LOG_D("WiFi not connected, skipping check");
     return;
   }
 
@@ -57,9 +53,7 @@ bool MeshSwarm::pollPendingOTAUpdates() {
 
   // Don't start a new update if we're actively transferring
   if (currentOTAUpdate.active && otaTransferStarted) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.println("[OTA] Transfer in progress, skipping poll");
-#endif
+    OTA_LOG_D("Transfer in progress, skipping poll");
     return false;
   }
 
@@ -71,9 +65,7 @@ bool MeshSwarm::pollPendingOTAUpdates() {
 
   int httpCode = http.GET();
   if (httpCode != 200) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.printf("[OTA] Poll failed: %d\n", httpCode);
-#endif
+    OTA_LOG("Poll failed: %d", httpCode);
     http.end();
     return false;
   }
@@ -85,9 +77,7 @@ bool MeshSwarm::pollPendingOTAUpdates() {
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, payload);
   if (err) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.printf("[OTA] JSON parse error: %s\n", err.c_str());
-#endif
+    OTA_LOG("JSON parse error: %s", err.c_str());
     return false;
   }
 
@@ -111,13 +101,11 @@ bool MeshSwarm::pollPendingOTAUpdates() {
   currentOTAUpdate.force = update["force"] | false;
   currentOTAUpdate.active = true;
 
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[OTA] Found update: id=%d, type=%s, version=%s, parts=%d\n",
-                currentOTAUpdate.updateId,
-                currentOTAUpdate.nodeType.c_str(),
-                currentOTAUpdate.version.c_str(),
-                currentOTAUpdate.numParts);
-#endif
+  OTA_LOG("Found update: id=%d, type=%s, version=%s, parts=%d",
+          currentOTAUpdate.updateId,
+          currentOTAUpdate.nodeType.c_str(),
+          currentOTAUpdate.version.c_str(),
+          currentOTAUpdate.numParts);
 
   return true;
 }
@@ -132,28 +120,22 @@ bool MeshSwarm::downloadOTAFirmware(int firmwareId) {
   // Store firmware size for the callback
   otaFirmwareSize = currentOTAUpdate.sizeBytes;
 
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[OTA] Firmware %d ready for distribution (%d bytes, %d parts)\n",
-                firmwareId, otaFirmwareSize, currentOTAUpdate.numParts);
-#endif
+  OTA_LOG("Firmware %d ready for distribution (%d bytes, %d parts)",
+          firmwareId, otaFirmwareSize, currentOTAUpdate.numParts);
 
   return true;
 }
 
 void MeshSwarm::startOTADistribution() {
   if (otaFirmwareSize == 0) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.println("[OTA] No firmware size set");
-#endif
+    OTA_LOG("No firmware size set");
     currentOTAUpdate.active = false;
     return;
   }
 
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[OTA] Starting distribution for %s v%s\n",
-                currentOTAUpdate.nodeType.c_str(),
-                currentOTAUpdate.version.c_str());
-#endif
+  OTA_LOG("Starting distribution for %s v%s",
+          currentOTAUpdate.nodeType.c_str(),
+          currentOTAUpdate.version.c_str());
 
   // Reset tracking variables
   otaLastPartSent = -1;
@@ -189,9 +171,7 @@ void MeshSwarm::startOTADistribution() {
 
     int httpCode = http.GET();
     if (httpCode != 206 && httpCode != 200) {
-#if MESHSWARM_ENABLE_SERIAL
-      Serial.printf("[OTA] Chunk fetch failed: %d (part %d)\n", httpCode, pkg.partNo);
-#endif
+      OTA_LOG("Chunk fetch failed: %d (part %d)", httpCode, pkg.partNo);
       http.end();
       return (size_t)0;
     }
@@ -211,30 +191,22 @@ void MeshSwarm::startOTADistribution() {
     http.end();
 
     if (bytesRead != chunkSize) {
-#if MESHSWARM_ENABLE_SERIAL
-      Serial.printf("[OTA] Incomplete chunk: %d/%d bytes (part %d)\n", bytesRead, chunkSize, pkg.partNo);
-#endif
+      OTA_LOG("Incomplete chunk: %d/%d bytes (part %d)", bytesRead, chunkSize, pkg.partNo);
       return (size_t)0;
     }
 
     // Track transfer progress
     if (!otaTransferStarted) {
       otaTransferStarted = true;
-#if MESHSWARM_ENABLE_SERIAL
-      Serial.println("[OTA] Transfer started - node is receiving firmware");
-#endif
+      OTA_LOG("Transfer started - node is receiving firmware");
     }
     otaLastPartSent = pkg.partNo;
 
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.printf("[OTA] Sent part %d/%d\n", pkg.partNo + 1, currentOTAUpdate.numParts);
-#endif
+    OTA_LOG_D("Sent part %d/%d", pkg.partNo + 1, currentOTAUpdate.numParts);
 
     // Check if this was the last part
     if (pkg.partNo + 1 >= currentOTAUpdate.numParts) {
-#if MESHSWARM_ENABLE_SERIAL
-      Serial.println("[OTA] All parts sent - transfer complete!");
-#endif
+      OTA_LOG("All parts sent - transfer complete!");
       // Report completion to server
       reportOTAComplete(currentOTAUpdate.updateId);
       currentOTAUpdate.active = false;
@@ -254,18 +226,14 @@ void MeshSwarm::startOTADistribution() {
   );
 
   if (otaTask) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.printf("[OTA] Offered to nodes with role=%s\n", currentOTAUpdate.nodeType.c_str());
-    Serial.println("[OTA] Waiting for nodes to request firmware...");
-#endif
+    OTA_LOG("Offered to nodes with role=%s", currentOTAUpdate.nodeType.c_str());
+    OTA_LOG("Waiting for nodes to request firmware...");
     // Note: painlessMesh will handle distribution automatically
     // The update remains active - chunks will be sent via the callback
     // We do NOT mark complete here - that happens when transfer actually occurs
     // or when a new update supersedes this one
   } else {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.println("[OTA] Failed to offer update");
-#endif
+    OTA_LOG("Failed to offer update");
     reportOTAFail(currentOTAUpdate.updateId, "Failed to offer update via mesh");
     currentOTAUpdate.active = false;
   }
@@ -284,13 +252,11 @@ void MeshSwarm::reportOTAStart(int updateId) {
   http.setTimeout(5000);
 
   int httpCode = http.POST("");
-#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200) {
-    Serial.printf("[OTA] Reported start for update %d\n", updateId);
+    OTA_LOG_D("Reported start for update %d", updateId);
   } else {
-    Serial.printf("[OTA] Failed to report start: %d\n", httpCode);
+    OTA_LOG("Failed to report start: %d", httpCode);
   }
-#endif
   http.end();
 }
 
@@ -319,11 +285,9 @@ void MeshSwarm::reportOTAProgress(const String& nodeId, int currentPart, int tot
   serializeJson(doc, payload);
 
   int httpCode = http.POST(payload);
-#if MESHSWARM_ENABLE_SERIAL
   if (httpCode != 200) {
-    Serial.printf("[OTA] Failed to report progress: %d\n", httpCode);
+    OTA_LOG("Failed to report progress: %d", httpCode);
   }
-#endif
   http.end();
 }
 
@@ -340,13 +304,11 @@ void MeshSwarm::reportOTAComplete(int updateId) {
   http.setTimeout(5000);
 
   int httpCode = http.POST("");
-#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200) {
-    Serial.printf("[OTA] Reported complete for update %d\n", updateId);
+    OTA_LOG_D("Reported complete for update %d", updateId);
   } else {
-    Serial.printf("[OTA] Failed to report complete: %d\n", httpCode);
+    OTA_LOG("Failed to report complete: %d", httpCode);
   }
-#endif
   http.end();
 }
 
@@ -363,13 +325,11 @@ void MeshSwarm::reportOTAFail(int updateId, const String& error) {
   http.setTimeout(5000);
 
   int httpCode = http.POST("");
-#if MESHSWARM_ENABLE_SERIAL
   if (httpCode == 200) {
-    Serial.printf("[OTA] Reported failure for update %d\n", updateId);
+    OTA_LOG_D("Reported failure for update %d", updateId);
   } else {
-    Serial.printf("[OTA] Failed to report failure: %d\n", httpCode);
+    OTA_LOG("Failed to report failure: %d", httpCode);
   }
-#endif
   http.end();
 }
 
@@ -384,9 +344,7 @@ void MeshSwarm::cleanupOTABuffer() {
 // ============== OTA RECEPTION (NODE) ==============
 void MeshSwarm::enableOTAReceive(const String& role) {
   mesh.initOTAReceive(role.c_str());
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[OTA] Receiver enabled for role: %s\n", role.c_str());
-#endif
+  OTA_LOG("Receiver enabled for role: %s", role.c_str());
 }
 
 #endif // MESHSWARM_ENABLE_OTA

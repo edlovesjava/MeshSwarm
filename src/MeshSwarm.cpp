@@ -76,9 +76,7 @@ void MeshSwarm::begin(const char* prefix, const char* password, uint16_t port, c
   // Stagger startup to reduce collisions
   uint32_t chipId = ESP.getEfuseMac() & 0xFFFF;
   uint32_t startDelay = (chipId % 3) * 500;
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[BOOT] Startup delay: %dms\n", startDelay);
-#endif
+  MESH_LOG_D("Startup delay: %dms", startDelay);
   delay(startDelay);
 
   // Initialize mesh
@@ -88,9 +86,9 @@ void MeshSwarm::begin(const char* prefix, const char* password, uint16_t port, c
   myName = nodeName ? String(nodeName) : nodeIdToName(myId);
   bootTime = millis();
 
+  MESH_LOG("Node ID: %u", myId);
+  MESH_LOG("Name: %s", myName.c_str());
 #if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[MESH] Node ID: %u\n", myId);
-  Serial.printf("[MESH] Name: %s\n", myName.c_str());
   Serial.println();
   Serial.println("Commands: status, peers, state, set <k> <v>, get <k>, sync, reboot");
   Serial.println("----------------------------------------");
@@ -210,9 +208,7 @@ bool MeshSwarm::setState(const String& key, const String& value) {
   unsigned long now = millis();
   if (telemetryEnabled) {
     if (now - lastStateTelemetryPush >= STATE_TELEMETRY_MIN_INTERVAL) {
-#if MESHSWARM_ENABLE_SERIAL
-      Serial.printf("[TELEM] State change push for %s=%s\n", key.c_str(), value.c_str());
-#endif
+      TELEM_LOG("State change push for %s=%s", key.c_str(), value.c_str());
       if (gatewayMode) {
         pushTelemetry();
       } else {
@@ -221,10 +217,8 @@ bool MeshSwarm::setState(const String& key, const String& value) {
       lastTelemetryPush = now;
       lastStateTelemetryPush = now;
     } else {
-#if MESHSWARM_ENABLE_SERIAL
-      Serial.printf("[TELEM] Debounced %s=%s (wait %lums)\n", key.c_str(), value.c_str(),
-                    STATE_TELEMETRY_MIN_INTERVAL - (now - lastStateTelemetryPush));
-#endif
+      TELEM_LOG_D("Debounced %s=%s (wait %lums)", key.c_str(), value.c_str(),
+                  STATE_TELEMETRY_MIN_INTERVAL - (now - lastStateTelemetryPush));
     }
   }
 #endif
@@ -271,9 +265,7 @@ bool MeshSwarm::setStates(std::initializer_list<std::pair<String, String>> state
   if (anyChanged && telemetryEnabled) {
     unsigned long now = millis();
     if (now - lastStateTelemetryPush >= STATE_TELEMETRY_MIN_INTERVAL) {
-#if MESHSWARM_ENABLE_SERIAL
-      Serial.println("[TELEM] State change push (batch)");
-#endif
+      TELEM_LOG("State change push (batch)");
       if (gatewayMode) {
         pushTelemetry();
       } else {
@@ -282,10 +274,8 @@ bool MeshSwarm::setStates(std::initializer_list<std::pair<String, String>> state
       lastTelemetryPush = now;
       lastStateTelemetryPush = now;
     } else {
-#if MESHSWARM_ENABLE_SERIAL
-      Serial.printf("[TELEM] Debounced batch (wait %lums)\n",
-                    STATE_TELEMETRY_MIN_INTERVAL - (now - lastStateTelemetryPush));
-#endif
+      TELEM_LOG_D("Debounced batch (wait %lums)",
+                  STATE_TELEMETRY_MIN_INTERVAL - (now - lastStateTelemetryPush));
     }
   }
 #endif
@@ -396,10 +386,8 @@ void MeshSwarm::handleStateSet(uint32_t from, JsonObject& data) {
     lastStateChange = key + "=" + value;
 #endif
 
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.printf("[STATE] %s = %s (v%u from %s)\n",
-                  key.c_str(), value.c_str(), version, nodeIdToName(origin).c_str());
-#endif
+    STATE_LOG("%s = %s (v%u from %s)",
+              key.c_str(), value.c_str(), version, nodeIdToName(origin).c_str());
   }
 }
 
@@ -410,10 +398,8 @@ void MeshSwarm::handleStateSync(uint32_t from, JsonObject& data) {
     handleStateSet(from, entry);
   }
 
-#if MESHSWARM_ENABLE_SERIAL
-  Serial.printf("[SYNC] Received %d state entries from %s\n",
-                arr.size(), nodeIdToName(from).c_str());
-#endif
+  STATE_LOG_D("Received %d state entries from %s",
+              arr.size(), nodeIdToName(from).c_str());
 }
 
 // ============== MESH CALLBACKS ==============
@@ -422,9 +408,7 @@ void MeshSwarm::onReceive(uint32_t from, String &msg) {
   DeserializationError err = deserializeJson(doc, msg);
 
   if (err) {
-#if MESHSWARM_ENABLE_SERIAL
-    Serial.printf("[RX] JSON error from %u\n", from);
-#endif
+    MESH_LOG_ERROR("JSON error from %u", from);
     return;
   }
 
@@ -474,13 +458,13 @@ void MeshSwarm::onReceive(uint32_t from, String &msg) {
 }
 
 void MeshSwarm::onNewConnection(uint32_t nodeId) {
-  Serial.printf("[MESH] + Connected: %s\n", nodeIdToName(nodeId).c_str());
+  MESH_LOG("+ Connected: %s", nodeIdToName(nodeId).c_str());
   sendHeartbeat();
   broadcastFullState();
 }
 
 void MeshSwarm::onDroppedConnection(uint32_t nodeId) {
-  Serial.printf("[MESH] - Dropped: %s\n", nodeIdToName(nodeId).c_str());
+  MESH_LOG("- Dropped: %s", nodeIdToName(nodeId).c_str());
   if (peers.count(nodeId)) {
     peers[nodeId].alive = false;
   }
@@ -488,7 +472,7 @@ void MeshSwarm::onDroppedConnection(uint32_t nodeId) {
 }
 
 void MeshSwarm::onChangedConnections() {
-  Serial.printf("[MESH] Topology changed. Nodes: %d\n", mesh.getNodeList().size());
+  MESH_LOG("Topology changed. Nodes: %d", mesh.getNodeList().size());
   electCoordinator();
 }
 
@@ -506,7 +490,7 @@ void MeshSwarm::electCoordinator() {
   myRole = (lowest == myId) ? "COORD" : "PEER";
 
   if (oldRole != myRole) {
-    Serial.printf("[ROLE] %s -> %s\n", oldRole.c_str(), myRole.c_str());
+    MESH_LOG("Role: %s -> %s", oldRole.c_str(), myRole.c_str());
   }
 }
 

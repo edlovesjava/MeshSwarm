@@ -62,12 +62,93 @@
 // Note: Callbacks are optional but enhance functionality when enabled with features
 // Display and Serial work without callbacks, but callbacks allow customization
 
+// ============== LOG LEVELS ==============
+// Control verbosity of serial output to reduce flash usage
+// Set to lower level to exclude higher-verbosity messages
+//
+// MESHSWARM_LOG_NONE  (0) - No logging (maximum flash savings)
+// MESHSWARM_LOG_ERROR (1) - Errors only
+// MESHSWARM_LOG_WARN  (2) - Errors + Warnings
+// MESHSWARM_LOG_INFO  (3) - Errors + Warnings + Info (default)
+// MESHSWARM_LOG_DEBUG (4) - All messages including debug
+
+#define MESHSWARM_LOG_NONE   0
+#define MESHSWARM_LOG_ERROR  1
+#define MESHSWARM_LOG_WARN   2
+#define MESHSWARM_LOG_INFO   3
+#define MESHSWARM_LOG_DEBUG  4
+
+#ifndef MESHSWARM_LOG_LEVEL
+#define MESHSWARM_LOG_LEVEL MESHSWARM_LOG_INFO
+#endif
+
+// ============== LOGGING MACROS ==============
+// These macros compile to nothing when log level is below threshold
+// Saves flash by not including unused format strings
+
+#if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_ERROR
+  #define MESH_LOG_ERROR(fmt, ...) Serial.printf("[ERR] " fmt "\n", ##__VA_ARGS__)
+#else
+  #define MESH_LOG_ERROR(fmt, ...)
+#endif
+
+#if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_WARN
+  #define MESH_LOG_WARN(fmt, ...) Serial.printf("[WARN] " fmt "\n", ##__VA_ARGS__)
+#else
+  #define MESH_LOG_WARN(fmt, ...)
+#endif
+
+#if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_INFO
+  #define MESH_LOG_INFO(fmt, ...) Serial.printf("[INFO] " fmt "\n", ##__VA_ARGS__)
+#else
+  #define MESH_LOG_INFO(fmt, ...)
+#endif
+
+#if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_DEBUG
+  #define MESH_LOG_DEBUG(fmt, ...) Serial.printf("[DBG] " fmt "\n", ##__VA_ARGS__)
+#else
+  #define MESH_LOG_DEBUG(fmt, ...)
+#endif
+
+// Prefixed variants for specific subsystems
+#if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_INFO
+  #define MESH_LOG(fmt, ...) Serial.printf("[MESH] " fmt "\n", ##__VA_ARGS__)
+  #define STATE_LOG(fmt, ...) Serial.printf("[STATE] " fmt "\n", ##__VA_ARGS__)
+  #define TELEM_LOG(fmt, ...) Serial.printf("[TELEM] " fmt "\n", ##__VA_ARGS__)
+  #define OTA_LOG(fmt, ...) Serial.printf("[OTA] " fmt "\n", ##__VA_ARGS__)
+  #define GATEWAY_LOG(fmt, ...) Serial.printf("[GATEWAY] " fmt "\n", ##__VA_ARGS__)
+#else
+  #define MESH_LOG(fmt, ...)
+  #define STATE_LOG(fmt, ...)
+  #define TELEM_LOG(fmt, ...)
+  #define OTA_LOG(fmt, ...)
+  #define GATEWAY_LOG(fmt, ...)
+#endif
+
+#if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_DEBUG
+  #define MESH_LOG_D(fmt, ...) Serial.printf("[MESH] " fmt "\n", ##__VA_ARGS__)
+  #define STATE_LOG_D(fmt, ...) Serial.printf("[STATE] " fmt "\n", ##__VA_ARGS__)
+  #define TELEM_LOG_D(fmt, ...) Serial.printf("[TELEM] " fmt "\n", ##__VA_ARGS__)
+  #define OTA_LOG_D(fmt, ...) Serial.printf("[OTA] " fmt "\n", ##__VA_ARGS__)
+#else
+  #define MESH_LOG_D(fmt, ...)
+  #define STATE_LOG_D(fmt, ...)
+  #define TELEM_LOG_D(fmt, ...)
+  #define OTA_LOG_D(fmt, ...)
+#endif
+
 // ============== COMPILE-TIME INFORMATION ==============
 
 #if !MESHSWARM_ENABLE_DISPLAY && !MESHSWARM_ENABLE_SERIAL && !MESHSWARM_ENABLE_TELEMETRY && !MESHSWARM_ENABLE_OTA
 #pragma message "MeshSwarm: Core-only build (minimal flash usage)"
 #elif !MESHSWARM_ENABLE_TELEMETRY && !MESHSWARM_ENABLE_OTA
 #pragma message "MeshSwarm: Basic build (Display + Serial)"
+#endif
+
+#if MESHSWARM_LOG_LEVEL == MESHSWARM_LOG_NONE
+#pragma message "MeshSwarm: Logging disabled (maximum flash savings)"
+#elif MESHSWARM_LOG_LEVEL == MESHSWARM_LOG_ERROR
+#pragma message "MeshSwarm: Error-only logging"
 #endif
 
 #endif // MESHSWARM_CONFIG_H

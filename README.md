@@ -33,6 +33,26 @@ MeshSwarm supports **feature flags** to disable optional components and reduce f
 - Full build: 58-84KB
 - Core only: 15-20KB (**saves ~40-65KB!**)
 
+### Log Levels
+
+Control logging verbosity to further reduce flash usage:
+
+```cpp
+// Set log level before including MeshSwarm.h
+#define MESHSWARM_LOG_LEVEL MESHSWARM_LOG_ERROR  // Errors only
+#include <MeshSwarm.h>
+```
+
+| Level | Value | Description |
+|-------|-------|-------------|
+| `MESHSWARM_LOG_NONE` | 0 | No logging (maximum flash savings) |
+| `MESHSWARM_LOG_ERROR` | 1 | Errors only |
+| `MESHSWARM_LOG_WARN` | 2 | Errors + Warnings |
+| `MESHSWARM_LOG_INFO` | 3 | Errors + Warnings + Info **(default)** |
+| `MESHSWARM_LOG_DEBUG` | 4 | All messages including debug |
+
+Setting `MESHSWARM_LOG_LEVEL` to `ERROR` or `NONE` can save an additional **4-8KB** of flash.
+
 See **[docs/MODULAR_BUILD.md](docs/MODULAR_BUILD.md)** for complete documentation.
 
 ## Installation
