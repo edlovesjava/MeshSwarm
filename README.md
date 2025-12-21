@@ -382,7 +382,7 @@ This library includes the following example sketches (File → Examples → Mesh
 
 ## Sample image of nodes
 
-![Swarm sample](IMG_0619.jpg "Swarm Sample")
+![Swarm sample](IMG_0619.jpeg "Swarm Sample")
 
 ## Related Projects
 
