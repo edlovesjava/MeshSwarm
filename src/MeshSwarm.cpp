@@ -566,5 +566,6 @@ String MeshSwarm::nodeIdToName(uint32_t id) {
 #include "features/MeshSwarmDisplay.inc"
 #include "features/MeshSwarmSerial.inc"
 #include "features/MeshSwarmCallbacks.inc"
+#include "features/MeshSwarmHTTP.inc"
 #include "features/MeshSwarmTelemetry.inc"
 #include "features/MeshSwarmOTA.inc"

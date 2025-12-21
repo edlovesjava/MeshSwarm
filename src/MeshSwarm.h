@@ -379,6 +379,13 @@ private:
   void reportOTAFail(int updateId, const String& error);
   void cleanupOTABuffer();
 #endif
+
+#if MESHSWARM_ENABLE_TELEMETRY || MESHSWARM_ENABLE_OTA
+  // HTTP helpers (shared by telemetry and OTA)
+  int httpPost(const String& url, const String& payload, String* response = nullptr, int timeout = 5000);
+  int httpGet(const String& url, String* response = nullptr, int timeout = 5000);
+  int httpGetRange(const String& url, uint8_t* buffer, size_t bufferSize, int rangeStart, int rangeEnd, int timeout = 10000);
+#endif
 };
 
 #endif // MESH_SWARM_H

@@ -49,16 +49,6 @@ void MeshSwarm::pushTelemetry() {
     return;
   }
 
-  HTTPClient http;
-  String url = telemetryUrl + "/api/v1/nodes/" + String(myId, HEX) + "/telemetry";
-
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-  if (telemetryApiKey.length() > 0) {
-    http.addHeader("X-API-Key", telemetryApiKey);
-  }
-  http.setTimeout(5000);  // 5 second timeout
-
   // Build JSON payload
   JsonDocument doc;
   doc["name"] = myName;
@@ -77,13 +67,14 @@ void MeshSwarm::pushTelemetry() {
   String payload;
   serializeJson(doc, payload);
 
-  int httpCode = http.POST(payload);
+  String url = telemetryUrl + "/api/v1/nodes/" + String(myId, HEX) + "/telemetry";
+  int httpCode = httpPost(url, payload);
+
   if (httpCode == 200 || httpCode == 201) {
     TELEM_LOG_D("Push OK");
   } else {
     TELEM_LOG("Push failed: %d", httpCode);
   }
-  http.end();
 }
 
 // ============== GATEWAY MODE ==============
@@ -135,26 +126,17 @@ void MeshSwarm::pushTelemetryForNode(uint32_t nodeId, JsonObject& data) {
     return;
   }
 
-  HTTPClient http;
-  String url = telemetryUrl + "/api/v1/nodes/" + String(nodeId, HEX) + "/telemetry";
-
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-  if (telemetryApiKey.length() > 0) {
-    http.addHeader("X-API-Key", telemetryApiKey);
-  }
-  http.setTimeout(5000);
-
   String payload;
   serializeJson(data, payload);
 
-  int httpCode = http.POST(payload);
+  String url = telemetryUrl + "/api/v1/nodes/" + String(nodeId, HEX) + "/telemetry";
+  int httpCode = httpPost(url, payload);
+
   if (httpCode == 200 || httpCode == 201) {
     GATEWAY_LOG("Push OK for %s", nodeIdToName(nodeId).c_str());
   } else {
     GATEWAY_LOG("Push failed for %s: %d", nodeIdToName(nodeId).c_str(), httpCode);
   }
-  http.end();
 }
 
 #endif // MESHSWARM_ENABLE_TELEMETRY

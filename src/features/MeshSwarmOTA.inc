@@ -57,25 +57,18 @@ bool MeshSwarm::pollPendingOTAUpdates() {
     return false;
   }
 
-  HTTPClient http;
   String url = telemetryUrl + "/api/v1/ota/updates/pending";
+  String response;
+  int httpCode = httpGet(url, &response, 10000);
 
-  http.begin(url);
-  http.setTimeout(10000);
-
-  int httpCode = http.GET();
   if (httpCode != 200) {
     OTA_LOG("Poll failed: %d", httpCode);
-    http.end();
     return false;
   }
 
-  String payload = http.getString();
-  http.end();
-
   // Parse JSON array of pending updates
   JsonDocument doc;
-  DeserializationError err = deserializeJson(doc, payload);
+  DeserializationError err = deserializeJson(doc, response);
   if (err) {
     OTA_LOG("JSON parse error: %s", err.c_str());
     return false;
@@ -160,38 +153,17 @@ void MeshSwarm::startOTADistribution() {
     }
 
     // Fetch chunk from server using Range header
-    HTTPClient http;
     String url = telemetryUrl + "/api/v1/firmware/" + String(firmwareId) + "/download";
+    int result = httpGetRange(url, (uint8_t*)buffer, chunkSize,
+                              offset, offset + chunkSize - 1, 10000);
 
-    http.begin(url);
-    http.setTimeout(10000);
-    // Request specific byte range
-    String rangeHeader = "bytes=" + String(offset) + "-" + String(offset + chunkSize - 1);
-    http.addHeader("Range", rangeHeader);
-
-    int httpCode = http.GET();
-    if (httpCode != 206 && httpCode != 200) {
-      OTA_LOG("Chunk fetch failed: %d (part %d)", httpCode, pkg.partNo);
-      http.end();
+    if (result < 0) {
+      OTA_LOG("Chunk fetch failed: %d (part %d)", result, pkg.partNo);
       return (size_t)0;
     }
 
-    // Read chunk into buffer
-    WiFiClient* stream = http.getStreamPtr();
-    size_t bytesRead = 0;
-    while (bytesRead < chunkSize && http.connected()) {
-      size_t available = stream->available();
-      if (available > 0) {
-        size_t toRead = min(available, chunkSize - bytesRead);
-        size_t read = stream->readBytes(buffer + bytesRead, toRead);
-        bytesRead += read;
-      }
-      delay(1);
-    }
-    http.end();
-
-    if (bytesRead != chunkSize) {
-      OTA_LOG("Incomplete chunk: %d/%d bytes (part %d)", bytesRead, chunkSize, pkg.partNo);
+    if ((size_t)result != chunkSize) {
+      OTA_LOG("Incomplete chunk: %d/%d bytes (part %d)", result, chunkSize, pkg.partNo);
       return (size_t)0;
     }
 
@@ -244,34 +216,20 @@ void MeshSwarm::reportOTAStart(int updateId) {
     return;
   }
 
-  HTTPClient http;
   String url = telemetryUrl + "/api/v1/ota/updates/" + String(updateId) + "/start";
+  int httpCode = httpPost(url, "");
 
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-  http.setTimeout(5000);
-
-  int httpCode = http.POST("");
   if (httpCode == 200) {
     OTA_LOG_D("Reported start for update %d", updateId);
   } else {
     OTA_LOG("Failed to report start: %d", httpCode);
   }
-  http.end();
 }
 
 void MeshSwarm::reportOTAProgress(const String& nodeId, int currentPart, int totalParts, const String& status, const String& error) {
   if (telemetryUrl.length() == 0 || !isWiFiConnected() || currentOTAUpdate.updateId == 0) {
     return;
   }
-
-  HTTPClient http;
-  String url = telemetryUrl + "/api/v1/ota/updates/" + String(currentOTAUpdate.updateId) +
-               "/node/" + nodeId + "/progress";
-
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-  http.setTimeout(5000);
 
   JsonDocument doc;
   doc["current_part"] = currentPart;
@@ -284,11 +242,13 @@ void MeshSwarm::reportOTAProgress(const String& nodeId, int currentPart, int tot
   String payload;
   serializeJson(doc, payload);
 
-  int httpCode = http.POST(payload);
+  String url = telemetryUrl + "/api/v1/ota/updates/" + String(currentOTAUpdate.updateId) +
+               "/node/" + nodeId + "/progress";
+  int httpCode = httpPost(url, payload);
+
   if (httpCode != 200) {
     OTA_LOG("Failed to report progress: %d", httpCode);
   }
-  http.end();
 }
 
 void MeshSwarm::reportOTAComplete(int updateId) {
@@ -296,20 +256,14 @@ void MeshSwarm::reportOTAComplete(int updateId) {
     return;
   }
 
-  HTTPClient http;
   String url = telemetryUrl + "/api/v1/ota/updates/" + String(updateId) + "/complete";
+  int httpCode = httpPost(url, "");
 
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-  http.setTimeout(5000);
-
-  int httpCode = http.POST("");
   if (httpCode == 200) {
     OTA_LOG_D("Reported complete for update %d", updateId);
   } else {
     OTA_LOG("Failed to report complete: %d", httpCode);
   }
-  http.end();
 }
 
 void MeshSwarm::reportOTAFail(int updateId, const String& error) {
@@ -317,20 +271,14 @@ void MeshSwarm::reportOTAFail(int updateId, const String& error) {
     return;
   }
 
-  HTTPClient http;
   String url = telemetryUrl + "/api/v1/ota/updates/" + String(updateId) + "/fail?error_message=" + error;
+  int httpCode = httpPost(url, "");
 
-  http.begin(url);
-  http.addHeader("Content-Type", "application/json");
-  http.setTimeout(5000);
-
-  int httpCode = http.POST("");
   if (httpCode == 200) {
     OTA_LOG_D("Reported failure for update %d", updateId);
   } else {
     OTA_LOG("Failed to report failure: %d", httpCode);
   }
-  http.end();
 }
 
 void MeshSwarm::cleanupOTABuffer() {
