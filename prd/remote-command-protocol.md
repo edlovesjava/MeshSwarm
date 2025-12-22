@@ -307,6 +307,96 @@ Simple connectivity test.
 
 ---
 
+## Feature-Contributed Commands
+
+The Remote Command Protocol is designed to be extensible. Other MeshSwarm features can register their own commands that become available over the mesh and gateway API.
+
+### How Features Add Commands
+
+Features use the `onCommand()` API to register handlers:
+
+```cpp
+// In feature initialization
+swarm.onCommand("feature_cmd", [](const String& from, JsonObject& args) {
+  // Handle command
+  JsonDocument doc;
+  doc["result"] = "success";
+  return doc.as<JsonObject>();
+});
+```
+
+### Persistent Node Configuration Commands
+
+When `MESHSWARM_ENABLE_CONFIG` is enabled, these commands become available:
+
+| Command | Args | Description |
+|---------|------|-------------|
+| `config` | - | List all config keys |
+| `config_get` | `{key}` | Get config value |
+| `config_set` | `{key, value}` | Set config value |
+| `config_remove` | `{key}` | Remove config entry |
+| `config_export` | - | Export all config as JSON |
+| `config_import` | `{config: {...}}` | Import config from JSON |
+| `config_clear` | `{confirm: true}` | Factory reset config |
+
+See [Persistent Node Configuration PRD](persistent-node-config.md) for details.
+
+### Display Commands (Future)
+
+When display features are extended, commands like:
+
+| Command | Args | Description |
+|---------|------|-------------|
+| `display_show` | `{text, line}` | Show text on display |
+| `display_clear` | - | Clear display |
+| `display_brightness` | `{level}` | Set brightness |
+
+### Controller Commands (Future)
+
+When controller features are implemented, commands like:
+
+| Command | Args | Description |
+|---------|------|-------------|
+| `ir_send` | `{protocol, code}` | Send IR code |
+| `ir_learn` | `{timeout}` | Learn IR code |
+| `relay_set` | `{channel, state}` | Set relay state |
+| `servo_move` | `{channel, angle}` | Move servo |
+
+### Command Namespacing Convention
+
+To avoid collisions, feature commands should use prefixes:
+
+| Feature | Prefix | Example |
+|---------|--------|---------|
+| Core | (none) | `status`, `peers`, `reboot` |
+| Config | `config_` | `config_get`, `config_set` |
+| Display | `display_` | `display_show`, `display_clear` |
+| IR Controller | `ir_` | `ir_send`, `ir_learn` |
+| RF Controller | `rf_` | `rf_send`, `rf_learn` |
+| Servo | `servo_` | `servo_move`, `servo_home` |
+
+### Discovering Available Commands
+
+The `info` command response includes available commands:
+
+```json
+{
+  "version": "1.0.0",
+  "features": {
+    "display": true,
+    "config": true,
+    "ir_controller": false
+  },
+  "commands": [
+    "status", "peers", "state", "get", "set", "sync", "reboot", "info", "ping",
+    "config", "config_get", "config_set", "config_remove", "config_export", "config_import",
+    "display_show", "display_clear"
+  ]
+}
+```
+
+---
+
 ## Gateway HTTP API
 
 ### POST /api/command
@@ -511,4 +601,5 @@ swarm.onCommand("ir_send", [](const String& from, JsonObject& args) {
 
 - [MeshSwarm Library](../README.md)
 - [Modular Build Guide](../docs/MODULAR_BUILD.md)
+- [Persistent Node Configuration PRD](persistent-node-config.md)
 - [painlessMesh Documentation](https://gitlab.com/painlessMesh/painlessMesh)
