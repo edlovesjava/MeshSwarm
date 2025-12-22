@@ -25,6 +25,49 @@ Enable nodes to send commands to other nodes through the mesh, and allow externa
 
 ---
 
+## Network Abstraction Layer
+
+**Status**: Idea
+
+Abstract the networking layer to decouple MeshSwarm from painlessMesh and support multiple transport protocols.
+
+**Current State:**
+- Tightly coupled to painlessMesh WiFi mesh
+- Direct calls to `mesh.sendBroadcast()`, `mesh.getNodeId()`, etc. throughout codebase
+
+**Proposed Transports:**
+
+| Transport | Range | Power | Speed | Use Case |
+|-----------|-------|-------|-------|----------|
+| **painlessMesh** (WiFi) | ~100m | High | Fast | Indoor, high bandwidth |
+| **ESP-NOW** | ~200m | Low | Fast | Low latency, peer-to-peer |
+| **BLE Mesh** | ~30m | Very Low | Slow | Battery devices, wearables |
+| **LoRa** | ~10km | Low | Very Slow | Long range, outdoor |
+| **Thread/Matter** | ~100m | Low | Medium | Smart home interop |
+
+**Interface Concept:**
+```cpp
+class MeshTransport {
+public:
+  virtual void begin() = 0;
+  virtual void update() = 0;
+  virtual uint32_t getNodeId() = 0;
+  virtual void sendBroadcast(const String& msg) = 0;
+  virtual void sendTo(uint32_t target, const String& msg) = 0;
+  virtual void onReceive(ReceiveCallback cb) = 0;
+  virtual void onConnectionChange(ConnectionCallback cb) = 0;
+  virtual std::list<uint32_t> getNodeList() = 0;
+};
+```
+
+**Benefits:**
+- Swap transports without changing application code
+- Mix transports (WiFi mesh + LoRa bridge)
+- Easier testing with mock transport
+- Support new protocols as they emerge
+
+---
+
 ## Displays
 
 Displays are primarily for presenting status or information, but can also serve as controllers to direct actions.
