@@ -27,74 +27,25 @@ Enable nodes to send commands to other nodes through the mesh, and allow externa
 
 ## 🔥 Persistent Node Configuration (Priority)
 
-**Status**: Proposed
+**Status**: Proposed | [Full Specification](prd/persistent-node-config.md)
 
-Store node-specific configuration in non-volatile memory (NVS) to survive reboots and OTA updates.
+Store node-specific configuration in ESP32 NVS to survive reboots and OTA updates.
 
-**Problem:**
-- OTA firmware updates are role-based (SensorNode, LedNode, etc.)
-- Individual nodes have unique configuration that is NOT part of the firmware:
-  - Custom node name
-  - Room/zone assignment
-  - Device-specific parameters (calibration, thresholds, etc.)
-  - Feature toggles
-  - Credentials or API keys
-- Currently this configuration is lost on reboot/OTA
+**Problem:** OTA firmware is role-based, but nodes have unique config (names, rooms, calibration) that's lost on update.
 
-**Proposed API:**
-```cpp
-// Store node-specific config
-swarm.setConfig("name", "Kitchen Sensor");
-swarm.setConfig("room", "kitchen");
-swarm.setConfig("zone", "downstairs");
-swarm.setConfig("temp_offset", "-1.5");
+**Key Features:**
+- Key-value config store using ESP32 Preferences (NVS)
+- Simple API: `setConfig()`, `getConfig()`, `hasConfig()`, `removeConfig()`
+- Typed helpers: `getConfigInt()`, `getConfigFloat()`, `getConfigBool()`
+- Export/import as JSON for backup and bulk provisioning
+- Serial commands: `config get/set/remove/clear/export/import`
+- Remote command integration for configuring nodes over the mesh
 
-// Retrieve config (with defaults)
-String name = swarm.getConfig("name", "Unnamed");
-String room = swarm.getConfig("room", "default");
-float offset = swarm.getConfig("temp_offset", "0").toFloat();
-
-// Check if config exists
-bool hasRoom = swarm.hasConfig("room");
-
-// Remove config
-swarm.removeConfig("old_setting");
-
-// List all config keys
-std::vector<String> keys = swarm.getConfigKeys();
-```
-
-**Storage Options (ESP32):**
-
-| Method | Size | Wear | Best For |
-|--------|------|------|----------|
-| **Preferences (NVS)** | ~20KB | Low | Key-value config (recommended) |
-| **LittleFS** | Flexible | Medium | Larger data, files |
-| **SPIFFS** | Flexible | Medium | Legacy support |
-| **EEPROM** | 4KB | High | Simple, small data |
-
-**Features:**
-- [ ] Key-value config store using ESP32 Preferences (NVS)
-- [ ] Automatic initialization on `begin()`
-- [ ] Config survives OTA updates
-- [ ] Optional config backup to mesh state (recoverable)
-- [ ] Config import/export via serial or remote command
-- [ ] Namespace support for multi-app scenarios
-
-**Integration with Remote Commands:**
-```
-GET config           → List all config keys
-GET config/<key>     → Get specific config value
-SET config <key> <value> → Set config value
-DELETE config/<key>  → Remove config entry
-```
-
-**Use Cases:**
+**Enables:**
 - Assign friendly names without reflashing
-- Configure room/zone for home automation
-- Store sensor calibration data
-- Save user preferences per device
-- Maintain identity across firmware updates
+- Configure room/zone assignments remotely
+- Store sensor calibration that survives OTA
+- Bulk provision new nodes via gateway
 
 ---
 
