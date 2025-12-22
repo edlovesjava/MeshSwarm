@@ -265,6 +265,155 @@ swarm.setConfig("dht_pin", "15");
 
 ---
 
+## Local Input Controls
+
+**Status**: Idea
+
+Abstraction for physical buttons, encoders, and inputs on the node itself for immediate local control.
+
+### Input Types
+
+| Input | Wires | Events | Use Cases |
+|-------|-------|--------|-----------|
+| **Momentary Button** | 1 GPIO | press, release, long_press, double_click | Menu select, reset, wake |
+| **Toggle Switch** | 1 GPIO | on, off | Mode switching, enable/disable |
+| **Rotary Encoder** | 2-3 GPIO | rotate_cw, rotate_ccw, press | Value adjustment, menu navigation |
+| **Touch Pad** | 1 Touch GPIO | touch, release, swipe | Capacitive touch input |
+| **Joystick** | 2 ADC + 1 GPIO | direction, magnitude, press | Pan/tilt, navigation |
+| **Keypad** | Matrix (R×C) | key_press, key_release | Numeric input, commands |
+
+### Standard Button Functions
+
+| Function | Default Pin | Purpose |
+|----------|-------------|---------|
+| **BOOT/Flash** | GPIO0 | Factory reset (long press), menu action |
+| **Reset** | EN | Hardware reset |
+| **User Button** | Configurable | Application-defined |
+| **Screen Control** | Configurable | Display on/off, page navigation |
+
+### Button Abstraction
+
+```cpp
+// Register buttons
+swarm.addButton("menu", 0, INPUT_PULLUP);  // GPIO0
+swarm.addButton("up", 12, INPUT_PULLUP);
+swarm.addButton("down", 14, INPUT_PULLUP);
+swarm.addButton("select", 27, INPUT_PULLUP);
+
+// Button event handlers
+swarm.onButton("menu", BTN_PRESS, []() {
+  swarm.nextDisplayPage();
+});
+
+swarm.onButton("menu", BTN_LONG_PRESS, []() {
+  swarm.enterConfigMode();
+});
+
+swarm.onButton("select", BTN_DOUBLE_CLICK, []() {
+  swarm.toggleState("led");
+});
+```
+
+### Rotary Encoder Support
+
+```cpp
+// Register encoder
+swarm.addEncoder("dial", 32, 33, 25);  // CLK, DT, SW
+
+swarm.onEncoder("dial", ENC_ROTATE, [](int delta) {
+  int value = swarm.getConfigInt("brightness", 50);
+  value = constrain(value + delta * 5, 0, 100);
+  swarm.setConfig("brightness", String(value));
+});
+
+swarm.onEncoder("dial", ENC_PRESS, []() {
+  // Confirm selection
+});
+```
+
+### Multi-Button Combinations
+
+```cpp
+// Register combo actions
+swarm.onButtonCombo({"up", "down"}, 3000, []() {
+  // Hold both for 3 seconds = factory reset
+  swarm.clearConfig();
+  ESP.restart();
+});
+
+swarm.onButtonCombo({"menu", "select"}, 5000, []() {
+  // Enter OTA mode
+  swarm.enterOTAMode();
+});
+```
+
+### Event Types
+
+| Event | Description |
+|-------|-------------|
+| `BTN_PRESS` | Button pressed (immediate) |
+| `BTN_RELEASE` | Button released |
+| `BTN_CLICK` | Press + release < 500ms |
+| `BTN_DOUBLE_CLICK` | Two clicks < 400ms apart |
+| `BTN_LONG_PRESS` | Held > 1000ms (configurable) |
+| `BTN_REPEAT` | Continuous trigger while held |
+| `ENC_ROTATE` | Encoder rotated (delta: ±1, ±N) |
+| `ENC_PRESS` | Encoder button pressed |
+
+### Display Integration
+
+```cpp
+// Built-in display navigation
+swarm.enableDisplayNavigation(
+  "up",      // Previous page
+  "down",    // Next page
+  "select",  // Select/enter
+  "menu"     // Back/menu
+);
+
+// Screen on/off control
+swarm.setDisplayButton("select", BTN_PRESS);   // Wake display
+swarm.setDisplayTimeout(30000);                 // Auto-off after 30s
+```
+
+### Mesh Integration
+
+Publish button events to mesh state or send commands:
+
+```cpp
+// Publish to mesh state
+swarm.onButton("trigger", BTN_PRESS, []() {
+  swarm.setState("button_trigger", "pressed");
+});
+
+// Send command to another node
+swarm.onButton("remote_led", BTN_CLICK, []() {
+  swarm.sendCommand("N5678", "set", {{"key", "led"}, {"value", "toggle"}});
+});
+```
+
+### Remote Commands
+
+| Command | Args | Description |
+|---------|------|-------------|
+| `buttons` | - | List configured buttons |
+| `button_state` | `{name}` | Get current button state |
+| `simulate_button` | `{name, event}` | Simulate button event |
+
+### Features
+
+- [ ] Button debouncing with configurable timing
+- [ ] Multi-event detection (click, double-click, long press)
+- [ ] Rotary encoder with acceleration
+- [ ] Button combinations and sequences
+- [ ] Touch pad support (ESP32 capacitive touch)
+- [ ] Display navigation integration
+- [ ] Wake from sleep on button press
+- [ ] Factory reset on button combo
+- [ ] Publish button events to mesh
+
+---
+
 ## Displays
 
 Displays are primarily for presenting status or information, but can also serve as controllers to direct actions.
