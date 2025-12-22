@@ -1,5 +1,8 @@
 # MeshSwarm
 
+[![CI](https://github.com/edlovesjava/MeshSwarm/actions/workflows/ci.yml/badge.svg)](https://github.com/edlovesjava/MeshSwarm/actions/workflows/ci.yml)
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/edlovesjava/library/MeshSwarm.svg)](https://registry.platformio.org/libraries/edlovesjava/MeshSwarm)
+
 A self-organizing ESP32 mesh network library with distributed shared state synchronization.
 
 ## Core principles
@@ -82,17 +85,25 @@ Restart Arduino IDE after copying.
 
 ### PlatformIO
 
-Add to your `platformio.ini`:
+**Recommended for development.** See **[docs/PLATFORMIO_GUIDE.md](docs/PLATFORMIO_GUIDE.md)** for complete guide.
 
-```ini
-lib_deps =
-    painlessMesh
-    ArduinoJson
-    Adafruit SSD1306
-    Adafruit GFX Library
+Quick start:
+```bash
+# Clone or copy library to your project
+git clone https://github.com/edlovesjava/MeshSwarm.git
+
+# Navigate to project and compile
+cd MeshSwarm
+pio run -e esp32
+
+# Upload to device
+pio run -e esp32 --target upload
 ```
 
-Then copy `MeshSwarm/` to your project's `lib/` directory.
+The library includes `platformio.ini` with pre-configured environments for:
+- **Boards**: ESP32, ESP32-S3, ESP32-C3
+- **Feature flags**: Minimal, Display, Serial, Telemetry, OTA, Gateway
+- **Testing**: Automated compilation validation
 
 ## Dependencies
 

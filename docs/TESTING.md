@@ -329,6 +329,63 @@ Example GitHub Actions workflow structure:
     compile with TELEMETRY=0 OTA=0
 ```
 
+---
+
+## Automated Testing with CI/CD
+
+### GitHub Actions Workflow
+
+The project includes automated testing via GitHub Actions (`.github/workflows/ci.yml`):
+
+**Test Matrix:**
+- **Board Variants**: ESP32, ESP32-S3, ESP32-C3
+- **Feature Configurations**: Default, Minimal, Display, Serial, Telemetry, OTA, Gateway
+- **Examples**: All example sketches
+- **Log Levels**: None, Error, Info (default)
+
+**Total Tests per Commit:** ~30+ compilation tests
+
+### Viewing Results
+
+1. Go to https://github.com/edlovesjava/MeshSwarm/actions
+2. Click on latest workflow run
+3. View job results:
+   - ✅ Green = All tests passed
+   - ❌ Red = Compilation failed
+4. Click failed jobs to see error details
+
+### Running CI Tests Locally
+
+Using PlatformIO:
+
+```bash
+# Test all board variants
+pio run -e esp32
+pio run -e esp32s3
+pio run -e esp32c3
+
+# Test feature flags
+pio run -e test-minimal
+pio run -e test-core-display
+pio run -e test-telemetry
+pio run -e test-gateway
+
+# Test log levels
+pio run -e test-log-none
+pio run -e test-log-error
+
+# Compile all examples
+for example in examples/*/; do
+  cd "$example"
+  pio ci --lib="../.." --board=esp32dev *.ino
+  cd ../..
+done
+```
+
+See **[PLATFORMIO_GUIDE.md](PLATFORMIO_GUIDE.md)** for complete PlatformIO documentation.
+
+---
+
 ## Troubleshooting
 
 ### Issue: Compile errors with default build
@@ -342,3 +399,14 @@ Example GitHub Actions workflow structure:
 
 ### Issue: Linker errors
 **Solution:** Verify conditional compilation is consistent between header and implementation
+
+### Issue: CI tests failing on PR
+**Solution:** 
+1. Check GitHub Actions tab for error details
+2. Run failing environment locally: `pio run -e <env-name>`
+3. Fix compilation errors
+4. Push fix to trigger re-run
+
+---
+
+*Last updated: December 2024*

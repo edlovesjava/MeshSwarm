@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  compile-matrix:
+    name: Compile (${{ matrix.board }}, ${{ matrix.config }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - esp32
+          - esp32s3
+          - esp32c3
+        config:
+          - name: default
+            env: ""
+          - name: minimal
+            env: test-minimal
+          - name: display
+            env: test-core-display
+          - name: serial
+            env: test-core-serial
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+          pio --version
+      
+      - name: Compile BasicNode
+        run: |
+          cd examples/BasicNode
+          if [ -z "${{ matrix.config.env }}" ]; then
+            # Default build - use board environment
+            pio ci --lib="../.." --board=${{ matrix.board }} BasicNode.ino
+          else
+            # Test environment - use test environment name
+            pio ci --lib="../.." --project-option="env:${{ matrix.config.env }}" BasicNode.ino
+          fi
+
+  compile-examples:
+    name: Compile Examples (${{ matrix.example }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - BasicNode
+          - MinimalNode
+          - ButtonNode
+          - LedNode
+          - SensorNode
+          - WatcherNode
+          - DisplayOnlyNode
+          - GatewayNode
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+      
+      - name: Compile ${{ matrix.example }}
+        run: |
+          cd examples/${{ matrix.example }}
+          pio ci --lib="../.." --board=esp32dev ${{ matrix.example }}.ino
+
+  feature-flags:
+    name: Feature Flags (${{ matrix.env }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        env:
+          - test-telemetry
+          - test-ota
+          - test-gateway
+          - test-log-none
+          - test-log-error
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+      
+      - name: Compile BasicNode (${{ matrix.env }})
+        run: |
+          cd examples/BasicNode
+          pio ci --lib="../.." --project-option="env:${{ matrix.env }}" BasicNode.ino
+
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [compile-matrix, compile-examples, feature-flags]
+    if: always()
+    
+    steps:
+      - name: Check Status
+        run: |
+          echo "## Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.compile-matrix.result }}" == "success" ] && \
+             [ "${{ needs.compile-examples.result }}" == "success" ] && \
+             [ "${{ needs.feature-flags.result }}" == "success" ]; then
+            echo "✅ All compilation tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some compilation tests failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- Board Matrix: ${{ needs.compile-matrix.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Examples: ${{ needs.compile-examples.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Feature Flags: ${{ needs.feature-flags.result }}" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
