@@ -165,6 +165,118 @@ Controllers should integrate with the mesh to enable:
 
 ---
 
+## Battery Management
+
+**Status**: Idea
+
+Per-node battery monitoring and network-wide power management for battery-operated mesh nodes.
+
+### Battery Level Detection Methods
+
+| Method | Accuracy | Cost | Complexity | Notes |
+|--------|----------|------|------------|-------|
+| **ADC + Voltage Divider** | ±5-10% | Low | Simple | Direct battery voltage reading via ESP32 ADC |
+| **Fuel Gauge IC** | ±1% | Medium | I2C | MAX17048, BQ27441 - tracks charge/discharge |
+| **Coulomb Counter** | ±1% | Medium | I2C | LTC2941, BQ27421 - measures actual current flow |
+| **Smart Battery (SMBus)** | ±1% | High | I2C | Full battery info, common in laptops |
+| **PMIC Reporting** | Varies | Included | I2C | AXP192/202 on some ESP32 boards (M5Stack, TTGO) |
+
+### Per-Node Features
+
+```cpp
+// Battery API concept
+swarm.setBatteryPin(34, 3.3, 4.2);  // ADC pin, min voltage, max voltage
+swarm.setBatteryDivider(2.0);       // Voltage divider ratio
+
+int percent = swarm.getBatteryPercent();
+float voltage = swarm.getBatteryVoltage();
+bool charging = swarm.isCharging();
+bool lowBattery = swarm.isLowBattery();  // Below threshold
+
+// Auto-publish to mesh state
+swarm.enableBatteryReporting(true);  // Publishes "node_battery" state
+```
+
+**Features:**
+- [ ] ADC-based voltage reading with configurable pins
+- [ ] Voltage divider ratio configuration
+- [ ] Non-linear discharge curve compensation (LiPo/Li-Ion)
+- [ ] Fuel gauge IC support (MAX17048, BQ27441)
+- [ ] Charging detection (if hardware supports)
+- [ ] Low battery threshold alerts
+- [ ] Auto-publish battery level to mesh state
+- [ ] Battery state in heartbeat messages
+- [ ] Deep sleep on critical battery
+
+### Network-Wide Power Management
+
+```cpp
+// Network battery overview (coordinator/gateway)
+std::vector<NodeBattery> batteries = swarm.getAllBatteryLevels();
+NodeBattery lowest = swarm.getLowestBattery();
+std::vector<String> critical = swarm.getCriticalBatteryNodes(10);  // Below 10%
+```
+
+**Features:**
+- [ ] Aggregate battery status across all nodes
+- [ ] Identify nodes with low/critical battery
+- [ ] Dashboard view of network power status
+- [ ] Alerts when any node reaches critical level
+- [ ] Predictive battery life estimation
+- [ ] Historical battery drain tracking
+
+### Power Optimization
+
+| Strategy | Savings | Trade-off |
+|----------|---------|-----------|
+| **Deep Sleep** | 90%+ | Reduced responsiveness |
+| **Light Sleep** | 50-70% | Moderate latency |
+| **Reduce TX Power** | 20-40% | Reduced range |
+| **Longer Heartbeat** | 10-30% | Slower peer detection |
+| **Disable Features** | Varies | Reduced functionality |
+
+**Features:**
+- [ ] Configurable sleep modes
+- [ ] Wake on mesh message (ESP-NOW)
+- [ ] Coordinated sleep schedules
+- [ ] Adaptive heartbeat interval based on battery
+- [ ] TX power reduction on low battery
+- [ ] Feature disable on critical battery
+
+### Mesh State Keys
+
+| Key | Value | Description |
+|-----|-------|-------------|
+| `{node}_battery` | `85` | Battery percentage |
+| `{node}_voltage` | `3.92` | Battery voltage |
+| `{node}_charging` | `true/false` | Charging status |
+| `{node}_power` | `battery/usb/solar` | Power source |
+
+### Remote Commands
+
+| Command | Args | Description |
+|---------|------|-------------|
+| `battery` | - | Get battery status |
+| `battery_calibrate` | `{full_v, empty_v}` | Calibrate voltage range |
+| `sleep` | `{duration_ms}` | Enter deep sleep |
+| `power_mode` | `{mode}` | Set power mode |
+
+### Hardware Considerations
+
+**Common Battery Setups:**
+- 18650 Li-Ion (3.7V nominal, 3.0-4.2V range)
+- LiPo pouch cells (3.7V nominal)
+- 2x AA/AAA with boost converter
+- Solar + battery combination
+
+**ESP32 ADC Notes:**
+- ADC is non-linear, especially at extremes
+- Use attenuation for higher voltages
+- Consider averaging multiple readings
+- Calibrate per-device for accuracy
+
+---
+
 ## Combined Display-Controller Nodes
 
 Some nodes may serve dual purpose as both display and controller:
@@ -200,12 +312,6 @@ Some nodes may serve dual purpose as both display and controller:
 - [ ] WebSocket real-time updates
 - [ ] REST API for external control
 - [ ] Bluetooth mesh bridging
-
-### Power & Battery
-- [ ] Deep sleep coordination
-- [ ] Battery level monitoring
-- [ ] Solar charging support
-- [ ] Power consumption optimization
 
 ### Security
 - [ ] Encrypted mesh communication
