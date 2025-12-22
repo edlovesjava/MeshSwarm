@@ -92,6 +92,179 @@ public:
 
 ---
 
+## Peripheral Bus Abstraction
+
+**Status**: Idea
+
+Standardized way to address and interact with sensors, actuators, and expansion devices across different bus protocols.
+
+### Supported Bus Types
+
+| Bus | Addressing | Speed | Wires | Common Devices |
+|-----|------------|-------|-------|----------------|
+| **I2C** | 7-bit address (0x00-0x7F) | 100-400kHz | 2 (SDA, SCL) | Most sensors, displays, expanders |
+| **1-Wire** | 64-bit ROM code | 16kbps | 1 (+ GND) | DS18B20 temp, iButton |
+| **SPI** | CS pin select | 1-80MHz | 4 (MOSI, MISO, SCK, CS) | Fast sensors, displays, SD cards |
+| **Single-Wire** | GPIO pin | Varies | 1 | DHT11/22, WS2812 LEDs |
+| **Analog** | ADC channel | N/A | 1 | Potentiometers, light sensors |
+| **Digital GPIO** | Pin number | N/A | 1 | Buttons, relays, simple sensors |
+
+### Device Abstraction Concept
+
+```cpp
+// Unified device interface
+class MeshDevice {
+public:
+  virtual String getType() = 0;      // "sensor", "actuator", "display"
+  virtual String getBus() = 0;       // "i2c", "1wire", "spi", "gpio"
+  virtual String getAddress() = 0;   // Bus-specific address
+  virtual JsonObject read() = 0;     // Read current value(s)
+  virtual bool write(JsonObject) = 0; // Write value(s)
+  virtual JsonObject getInfo() = 0;  // Device metadata
+};
+
+// Example: I2C temperature sensor
+class I2CTempSensor : public MeshDevice {
+  String getType() { return "sensor"; }
+  String getBus() { return "i2c"; }
+  String getAddress() { return "0x48"; }
+  JsonObject read() {
+    // Returns {"temperature": 23.5, "unit": "C"}
+  }
+};
+```
+
+### I2C Device Registry
+
+```cpp
+// Auto-discover and register I2C devices
+swarm.scanI2C();  // Scan bus for devices
+
+// Register known device types
+swarm.registerI2CDevice(0x48, "TMP102", "temperature");
+swarm.registerI2CDevice(0x76, "BME280", "environment");
+swarm.registerI2CDevice(0x3C, "SSD1306", "display");
+swarm.registerI2CDevice(0x20, "PCF8574", "gpio_expander");
+
+// Access devices by address or name
+MeshDevice* sensor = swarm.getDevice("0x48");
+MeshDevice* sensor = swarm.getDeviceByName("TMP102");
+```
+
+### 1-Wire Support
+
+```cpp
+// Scan for 1-Wire devices
+std::vector<OneWireAddress> devices = swarm.scanOneWire(ONE_WIRE_PIN);
+
+// Register by ROM code
+swarm.registerOneWireDevice("28:FF:64:1E:2A:16:04:12", "DS18B20", "outside_temp");
+
+// Read temperature
+float temp = swarm.readOneWireTemp("outside_temp");
+```
+
+### Common Device Drivers
+
+**Sensors:**
+| Device | Bus | Type | Measures |
+|--------|-----|------|----------|
+| BME280/BMP280 | I2C | Environment | Temp, humidity, pressure |
+| SHT30/SHT31 | I2C | Environment | Temp, humidity |
+| TMP102/TMP117 | I2C | Temperature | High precision temp |
+| DS18B20 | 1-Wire | Temperature | Waterproof temp |
+| DHT11/DHT22 | Single-Wire | Environment | Temp, humidity |
+| BH1750 | I2C | Light | Lux level |
+| VL53L0X | I2C | Distance | ToF ranging |
+| MPU6050 | I2C | Motion | Accel, gyro |
+| ADS1115 | I2C | ADC | 4-ch 16-bit ADC |
+
+**Actuators:**
+| Device | Bus | Type | Controls |
+|--------|-----|------|----------|
+| PCA9685 | I2C | PWM | 16-ch servo/LED |
+| PCF8574 | I2C | GPIO | 8-ch digital I/O |
+| MCP23017 | I2C | GPIO | 16-ch digital I/O |
+| WS2812/SK6812 | Single-Wire | LED | Addressable RGB |
+| Relay modules | GPIO | Switch | High-power loads |
+
+### Auto-Discovery
+
+```cpp
+// Scan all buses on startup
+void setup() {
+  swarm.begin("SensorNode");
+
+  // Auto-discover devices
+  swarm.enableAutoDiscovery(true);
+  int found = swarm.discoverDevices();
+  Serial.printf("Found %d devices\n", found);
+
+  // List discovered devices
+  for (auto& dev : swarm.getDevices()) {
+    Serial.printf("  %s @ %s (%s)\n",
+      dev.getType().c_str(),
+      dev.getAddress().c_str(),
+      dev.getBus().c_str());
+  }
+}
+```
+
+### Mesh State Integration
+
+Auto-publish device readings to mesh state:
+
+```cpp
+swarm.enableDeviceReporting(true);
+
+// Creates state keys like:
+// "N1234_temp_0x48" = "23.5"
+// "N1234_humidity_0x76" = "65"
+// "N1234_light_0x23" = "450"
+```
+
+### Remote Commands
+
+| Command | Args | Description |
+|---------|------|-------------|
+| `devices` | - | List all devices |
+| `device_read` | `{address}` | Read device value |
+| `device_write` | `{address, value}` | Write to device |
+| `i2c_scan` | - | Scan I2C bus |
+| `1wire_scan` | `{pin}` | Scan 1-Wire bus |
+| `gpio_read` | `{pin}` | Read GPIO state |
+| `gpio_write` | `{pin, value}` | Set GPIO state |
+
+### Pin Configuration
+
+Store pin assignments in persistent config:
+
+```cpp
+// Configure in NVS
+swarm.setConfig("i2c_sda", "21");
+swarm.setConfig("i2c_scl", "22");
+swarm.setConfig("1wire_pin", "4");
+swarm.setConfig("dht_pin", "15");
+
+// Or via remote command
+// config_set {"key": "1wire_pin", "value": "4"}
+```
+
+### Features
+
+- [ ] I2C bus scanner and device registry
+- [ ] 1-Wire bus scanner (Dallas temperature sensors)
+- [ ] Common sensor drivers (BME280, SHT31, BH1750, etc.)
+- [ ] GPIO expander support (PCF8574, MCP23017)
+- [ ] PWM controller support (PCA9685)
+- [ ] Addressable LED support (WS2812, SK6812)
+- [ ] Auto-discovery on boot
+- [ ] Device readings to mesh state
+- [ ] Remote device read/write commands
+- [ ] Pin configuration via persistent config
+
+---
+
 ## Displays
 
 Displays are primarily for presenting status or information, but can also serve as controllers to direct actions.
@@ -291,13 +464,6 @@ Some nodes may serve dual purpose as both display and controller:
 ---
 
 ## Future Ideas
-
-### Protocols & Interfaces
-- [ ] I2C device support (sensors, displays, expanders)
-- [ ] SPI device support
-- [ ] UART device bridging
-- [ ] PWM output management
-- [ ] Analog input/output expansion
 
 ### Automation & Logic
 - [ ] Rule engine (if sensor X then controller Y)
