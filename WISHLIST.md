@@ -6,111 +6,22 @@ This document tracks ideas and enhancements for future development of the MeshSw
 
 ## 🔥 Remote Command Protocol (Priority)
 
-**Status**: MSG_COMMAND exists in the codebase but is NOT IMPLEMENTED
+**Status**: Proposed | [Full Specification](prd/remote-command-protocol.md)
 
-Currently, serial console commands (status, peers, state, set/get, etc.) only work locally on the node you're physically connected to. There's no way to:
-- Send commands to a specific node through the mesh
-- Query a remote node's status
-- Control nodes from external apps via the gateway
+Enable nodes to send commands to other nodes through the mesh, and allow external apps to control nodes via gateway HTTP API.
 
-### Proposed Architecture
+**Key Features:**
+- Node-to-node command messaging with request/response correlation
+- Gateway HTTP API (`/api/command`) for external app control
+- Built-in commands: `status`, `peers`, `state`, `get`, `set`, `sync`, `reboot`, `info`, `ping`
+- Custom command handlers via `onCommand()` callback
+- Broadcast support for mesh-wide commands
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  External   │────▶│   Gateway   │────▶│  Target     │
-│  App/API    │◀────│   Node      │◀────│  Node       │
-└─────────────┘     └─────────────┘     └─────────────┘
-                          │
-                          ▼
-                    ┌─────────────┐
-                    │  Other      │
-                    │  Nodes      │
-                    └─────────────┘
-```
-
-### Command Message Format
-
-```json
-{
-  "t": 5,                    // MSG_COMMAND
-  "n": "sender_name",
-  "d": {
-    "cmd": "status",         // Command name
-    "target": "N1234",       // Target node (or "*" for broadcast)
-    "rid": "abc123",         // Request ID for response correlation
-    "args": {}               // Command-specific arguments
-  }
-}
-```
-
-### Response Message Format
-
-```json
-{
-  "t": 7,                    // MSG_COMMAND_RESPONSE (new)
-  "n": "responder_name",
-  "d": {
-    "rid": "abc123",         // Matching request ID
-    "success": true,
-    "result": {}             // Command-specific result data
-  }
-}
-```
-
-### Core Commands to Implement
-
-| Command | Description | Args | Response |
-|---------|-------------|------|----------|
-| `status` | Get node status | - | id, name, role, heap, uptime |
-| `peers` | List known peers | - | Array of peer info |
-| `state` | Get all shared state | - | Key-value map |
-| `get` | Get specific state key | `key` | Value or null |
-| `set` | Set state key | `key`, `value` | Success boolean |
-| `sync` | Force state broadcast | - | Ack |
-| `reboot` | Restart node | - | Ack (then reboot) |
-| `info` | Get node capabilities | - | Features, version, hardware |
-
-### Gateway API Endpoints
-
-The gateway should expose HTTP/REST endpoints for external apps:
-
-```
-POST /api/command
-{
-  "target": "N1234",    // or "*" for broadcast
-  "command": "status",
-  "args": {}
-}
-
-Response:
-{
-  "request_id": "abc123",
-  "responses": [
-    { "node": "N1234", "success": true, "result": {...} }
-  ]
-}
-```
-
-### Implementation Tasks
-
-- [ ] Define MSG_COMMAND_RESPONSE message type
-- [ ] Implement command handler in onReceive()
-- [ ] Add sendCommand(target, cmd, args) method
-- [ ] Add command response callback system
-- [ ] Implement request/response correlation (request IDs)
-- [ ] Add timeout handling for responses
-- [ ] Gateway: Add HTTP API endpoints for external control
-- [ ] Gateway: Route commands from HTTP to mesh
-- [ ] Gateway: Collect and return responses to HTTP caller
-- [ ] Add command ACL/permissions (optional)
-
-### Use Cases Enabled
-
-1. **Dashboard Control**: Web app sends commands through gateway to any node
-2. **Node-to-Node**: Button node tells LED node to toggle
-3. **Automation**: Sensor node triggers controller node
-4. **Remote Debugging**: Query any node's status from anywhere
-5. **Display Controllers**: Touch screen sends commands to target nodes
+**Enables:**
+- Dashboard/web app control of any node
+- Display nodes sending commands to controller nodes
+- Sensor-triggered automation
+- Remote debugging and diagnostics
 
 ---
 
