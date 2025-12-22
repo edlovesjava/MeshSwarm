@@ -2,6 +2,12 @@
 
 A self-organizing ESP32 mesh network library with distributed shared state synchronization.
 
+## Core principles
+* privacy and autonomy first
+* collective intelligence in action
+* small and cheap but powerful in the aggregate
+* play as a skill: always have fun
+
 ## Features
 
 - **Self-organizing mesh**: Nodes automatically discover and connect using painlessMesh
