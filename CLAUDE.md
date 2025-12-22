@@ -127,7 +127,10 @@ reboot    - Restart node
 
 ## Related Repositories
 
-This library is part of a larger mesh ecosystem. Check for related repositories for:
-- Server/gateway implementations
-- Dashboard/monitoring tools
-- Additional node examples
+- **[iotmesh](https://github.com/edlovesjava/iotmesh)** - Current mesh implementation using this library. Contains working node firmware, gateway server, and deployment examples.
+
+This library is part of a larger mesh ecosystem. The iotmesh repository demonstrates real-world usage including:
+- Node firmware configurations
+- Gateway/server implementation
+- OTA update infrastructure
+- Telemetry collection
