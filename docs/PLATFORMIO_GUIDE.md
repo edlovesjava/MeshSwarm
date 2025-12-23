@@ -83,9 +83,11 @@ pio run -e test-gateway
 
 | Environment | Board | Description |
 |-------------|-------|-------------|
-| `esp32` | ESP32-WROOM-32 | Standard ESP32 (default) |
-| `esp32s3` | ESP32-S3-DevKitC-1 | ESP32-S3 with USB Serial/JTAG |
-| `esp32c3` | ESP32-C3-DevKitC-02 | ESP32-C3 RISC-V variant |
+| `esp32` | esp32dev | Standard ESP32 (default, recommended) |
+| `esp32s3` | esp32-s3-devkitc-1 | ESP32-S3 with USB Serial/JTAG |
+| `esp32c3` | esp32-c3-devkitc-02 | ESP32-C3 RISC-V variant |
+
+> **Note**: The `esp32` environment is the primary tested configuration. Other board variants are available but may require additional testing.
 
 ### Test Environments (Feature Flags)
 
@@ -276,14 +278,16 @@ pio run
 
 ## CI/CD Integration
 
-The GitHub Actions workflow automatically tests all environments:
+The GitHub Actions workflow automatically tests compilation on every push and pull request:
 
-- **Board Matrix**: Compiles for ESP32, ESP32-S3, ESP32-C3
-- **Feature Flags**: Tests all feature combinations
-- **Examples**: Compiles all example sketches
-- **Log Levels**: Tests different logging configurations
+- **Environments**: All feature flag configurations (esp32, test-minimal, test-gateway, etc.)
+- **Examples**: All example sketches (BasicNode, MinimalNode, SensorNode, etc.)
+
+The CI uses the same `platformio.ini` configuration with pinned dependency versions to ensure consistent builds.
 
 View results: https://github.com/edlovesjava/MeshSwarm/actions
+
+[![CI](https://github.com/edlovesjava/MeshSwarm/actions/workflows/ci.yml/badge.svg)](https://github.com/edlovesjava/MeshSwarm/actions/workflows/ci.yml)
 
 ---
 
