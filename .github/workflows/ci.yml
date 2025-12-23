@@ -103,11 +103,6 @@ jobs:
         run: |
           sed -i 's|src_dir = examples/BasicNode|src_dir = examples/${{ matrix.example }}|' platformio.ini
 
-      - name: Install example-specific dependencies
-        if: matrix.example == 'SensorNode'
-        run: |
-          pio lib install "adafruit/DHT sensor library"
-
       - name: Compile ${{ matrix.example }}
         run: pio run -e esp32
 
