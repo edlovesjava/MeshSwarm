@@ -117,12 +117,14 @@
   #define TELEM_LOG(fmt, ...) Serial.printf("[TELEM] " fmt "\n", ##__VA_ARGS__)
   #define OTA_LOG(fmt, ...) Serial.printf("[OTA] " fmt "\n", ##__VA_ARGS__)
   #define GATEWAY_LOG(fmt, ...) Serial.printf("[GATEWAY] " fmt "\n", ##__VA_ARGS__)
+  #define CMD_LOG(fmt, ...) Serial.printf("[CMD] " fmt "\n", ##__VA_ARGS__)
 #else
   #define MESH_LOG(fmt, ...)
   #define STATE_LOG(fmt, ...)
   #define TELEM_LOG(fmt, ...)
   #define OTA_LOG(fmt, ...)
   #define GATEWAY_LOG(fmt, ...)
+  #define CMD_LOG(fmt, ...)
 #endif
 
 #if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_DEBUG
@@ -130,11 +132,13 @@
   #define STATE_LOG_D(fmt, ...) Serial.printf("[STATE] " fmt "\n", ##__VA_ARGS__)
   #define TELEM_LOG_D(fmt, ...) Serial.printf("[TELEM] " fmt "\n", ##__VA_ARGS__)
   #define OTA_LOG_D(fmt, ...) Serial.printf("[OTA] " fmt "\n", ##__VA_ARGS__)
+  #define CMD_LOG_D(fmt, ...) Serial.printf("[CMD] " fmt "\n", ##__VA_ARGS__)
 #else
   #define MESH_LOG_D(fmt, ...)
   #define STATE_LOG_D(fmt, ...)
   #define TELEM_LOG_D(fmt, ...)
   #define OTA_LOG_D(fmt, ...)
+  #define CMD_LOG_D(fmt, ...)
 #endif
 
 // ============== COMPILE-TIME INFORMATION ==============

@@ -43,6 +43,7 @@ MeshSwarm::MeshSwarm()
     ,lastStateChange("")
     ,customStatus("")
 #endif
+    ,commandIdCounter(0)
 {
 #if MESHSWARM_ENABLE_OTA
   // Initialize OTA update info
@@ -85,6 +86,9 @@ void MeshSwarm::begin(const char* prefix, const char* password, uint16_t port, c
   myId = mesh.getNodeId();
   myName = nodeName ? String(nodeName) : nodeIdToName(myId);
   bootTime = millis();
+
+  // Register built-in remote commands
+  registerBuiltinCommands();
 
   MESH_LOG("Node ID: %u", myId);
   MESH_LOG("Name: %s", myName.c_str());
@@ -167,6 +171,9 @@ void MeshSwarm::update() {
     processSerial();
   }
 #endif
+
+  // Process command timeouts
+  processCommandTimeouts();
 
 #if MESHSWARM_ENABLE_CALLBACKS
   // Custom loop callbacks
@@ -441,6 +448,11 @@ void MeshSwarm::onReceive(uint32_t from, String &msg) {
       break;
 
     case MSG_COMMAND:
+      handleCommand(from, data);
+      break;
+
+    case MSG_COMMAND_RESPONSE:
+      handleCommandResponse(from, data);
       break;
 
 #if MESHSWARM_ENABLE_TELEMETRY
@@ -569,3 +581,4 @@ String MeshSwarm::nodeIdToName(uint32_t id) {
 #include "features/MeshSwarmHTTP.inc"
 #include "features/MeshSwarmTelemetry.inc"
 #include "features/MeshSwarmOTA.inc"
+#include "features/MeshSwarmCommand.inc"
