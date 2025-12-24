@@ -1,0 +1,13 @@
+# CODEOWNERS
+# Require approval from the repository owner for changes.
+# You can add additional maintainers or teams as needed.
+
+* @edlovesjava
+
+# Examples of scoping ownership to specific paths (uncomment to use):
+# /.github/workflows/ @edlovesjava
+# /platformio.ini @edlovesjava
+# /src/ @edlovesjava
+# /docs/ @edlovesjava
+# /examples/ @edlovesjava
+# /prd/ @edlovesjava

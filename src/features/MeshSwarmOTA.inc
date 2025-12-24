@@ -10,6 +10,8 @@
 #if MESHSWARM_ENABLE_OTA
 
 // ============== OTA DISTRIBUTION (GATEWAY) ==============
+#if MESHSWARM_ENABLE_TELEMETRY
+
 void MeshSwarm::enableOTADistribution(bool enable) {
   otaDistributionEnabled = enable;
   OTA_LOG("Distribution %s", enable ? "enabled" : "disabled");
@@ -280,6 +282,8 @@ void MeshSwarm::reportOTAFail(int updateId, const String& error) {
     OTA_LOG("Failed to report failure: %d", httpCode);
   }
 }
+
+#endif // MESHSWARM_ENABLE_TELEMETRY
 
 void MeshSwarm::cleanupOTABuffer() {
   if (otaFirmwareBuffer) {

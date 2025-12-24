@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # Test all feature flag environments using the existing platformio.ini
+  compile-environments:
+    name: Build ${{ matrix.env }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        env:
+          - esp32
+          - test-minimal
+          - test-core-display
+          - test-core-serial
+          - test-telemetry
+          - test-ota
+          - test-gateway
+          - test-log-none
+          - test-log-error
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: ${{ runner.os }}-pio-${{ matrix.env }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-${{ matrix.env }}-
+            ${{ runner.os }}-pio-
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+          pio --version
+
+      - name: Compile
+        run: pio run -e ${{ matrix.env }}
+
+  # Test all example sketches compile
+  compile-examples:
+    name: Example ${{ matrix.example }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - BasicNode
+          - MinimalNode
+          - ButtonNode
+          - LedNode
+          - SensorNode
+          - WatcherNode
+          - DisplayOnlyNode
+          - GatewayNode
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: ${{ runner.os }}-pio-example-${{ matrix.example }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-example-${{ matrix.example }}-
+            ${{ runner.os }}-pio-
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Update src_dir for ${{ matrix.example }}
+        run: |
+          sed -i 's|src_dir = examples/BasicNode|src_dir = examples/${{ matrix.example }}|' platformio.ini
+
+      - name: Compile ${{ matrix.example }}
+        run: pio run -e esp32
+
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [compile-environments, compile-examples]
+    if: always()
+
+    steps:
+      - name: Check Status
+        run: |
+          echo "## Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          ENV_RESULT="${{ needs.compile-environments.result }}"
+          EX_RESULT="${{ needs.compile-examples.result }}"
+
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$ENV_RESULT" == "success" ]; then
+            echo "| Environments | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Environments | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "$EX_RESULT" == "success" ]; then
+            echo "| Examples | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Examples | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$ENV_RESULT" == "success" ] && [ "$EX_RESULT" == "success" ]; then
+            echo "### ✅ All compilation tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Some compilation tests failed" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi

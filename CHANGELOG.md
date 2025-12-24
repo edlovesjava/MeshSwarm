@@ -5,6 +5,27 @@ All notable changes to MeshSwarm will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **PlatformIO support** for professional development workflow
+  - `platformio.ini` with multiple board environments (ESP32, ESP32-S3, ESP32-C3)
+  - Test environments for all feature flag combinations
+  - Log level testing environments
+- **GitHub Actions CI/CD** for automated testing
+  - Matrix testing across 3 boards × 7 feature configurations
+  - All example sketches compilation validation
+  - Automated PR status checks
+- **Documentation**
+  - `docs/PLATFORMIO_GUIDE.md` - Complete PlatformIO usage guide
+  - `prd/toolchain-infrastructure.md` - Toolchain PRD specification
+  - CI/CD section in `docs/TESTING.md`
+  - Build status badges in README.md
+
+### Changed
+- Updated README.md with PlatformIO installation and usage instructions
+- Enhanced TESTING.md with automated testing information
+
 ## [1.1.0] - 2024-12-20
 
 ### Added
