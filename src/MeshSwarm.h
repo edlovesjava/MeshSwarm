@@ -205,6 +205,11 @@ struct PendingCommand {
 
 // ============== MESHSWARM CLASS ==============
 class MeshSwarm {
+#if MESHSWARM_ENABLE_HTTP_SERVER
+  // Friend function for HTTP command handler (needs access to private members)
+  friend void handleCommandRequest(AsyncWebServerRequest *request, uint8_t *data, size_t len);
+#endif
+
 public:
   MeshSwarm();
 

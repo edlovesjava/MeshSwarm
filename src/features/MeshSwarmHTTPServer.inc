@@ -6,8 +6,10 @@
  *
  * Endpoints:
  *   POST /api/command - Send command to node(s)
+ *   GET /api/result/{id} - Poll for command result
  *   GET /api/nodes - List all known nodes
  *   GET /api/state - Get all shared state
+ *   GET /api/info - Get gateway info
  */
 
 #include "../MeshSwarm.h"
@@ -18,19 +20,48 @@
 static AsyncWebServer* _httpServer = nullptr;
 static MeshSwarm* _swarmInstance = nullptr;
 
-// Pending HTTP requests waiting for command responses
-struct PendingHTTPRequest {
-  AsyncWebServerRequest* request;
+// Store pending command results for polling
+struct CommandResult {
   String requestId;
   String target;
+  String command;
+  String status;  // "pending", "complete", "timeout"
   unsigned long timestamp;
   unsigned long timeout;
-  bool isBroadcast;
   std::vector<JsonDocument> responses;
   int expectedResponses;
+  bool isBroadcast;
 };
 
-static std::vector<PendingHTTPRequest> _pendingHTTPRequests;
+static std::map<String, CommandResult> _commandResults;
+static const size_t MAX_STORED_RESULTS = 20;  // Limit memory usage
+static const unsigned long RESULT_EXPIRY_MS = 60000;  // Clean up after 1 minute
+
+// Clean up old results
+static void cleanupOldResults() {
+  unsigned long now = millis();
+  for (auto it = _commandResults.begin(); it != _commandResults.end(); ) {
+    if (now - it->second.timestamp > RESULT_EXPIRY_MS) {
+      it = _commandResults.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  // Also limit total count
+  while (_commandResults.size() > MAX_STORED_RESULTS) {
+    // Remove oldest
+    auto oldest = _commandResults.begin();
+    for (auto it = _commandResults.begin(); it != _commandResults.end(); ++it) {
+      if (it->second.timestamp < oldest->second.timestamp) {
+        oldest = it;
+      }
+    }
+    _commandResults.erase(oldest);
+  }
+}
+
+// Forward declaration (friend of MeshSwarm class)
+void handleCommandRequest(AsyncWebServerRequest *request, uint8_t *data, size_t len);
 
 // ============== HTTP SERVER CONTROL ==============
 void MeshSwarm::startHTTPServer(uint16_t port) {
@@ -58,135 +89,65 @@ void MeshSwarm::startHTTPServer(uint16_t port) {
   // POST /api/command - Send command to node(s)
   _httpServer->on("/api/command", HTTP_POST,
     [](AsyncWebServerRequest *request) {
-      // Body handler processes the request
+      // This handler is called after body is received
+      // The body handler below does the actual work
     },
     nullptr,
     [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-      if (_swarmInstance == nullptr) {
-        request->send(500, "application/json", "{\"error\":\"Server not initialized\"}");
-        return;
+      // Only process complete body
+      if (index + len == total) {
+        handleCommandRequest(request, data, len);
       }
-
-      // Parse JSON body
-      JsonDocument doc;
-      DeserializationError err = deserializeJson(doc, data, len);
-      if (err) {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-        return;
-      }
-
-      String target = doc["target"] | "";
-      String command = doc["command"] | "";
-      unsigned long timeout = doc["timeout"] | 5000;
-
-      if (target.length() == 0 || command.length() == 0) {
-        request->send(400, "application/json", "{\"error\":\"Missing target or command\"}");
-        return;
-      }
-
-      HTTP_LOG("API command: %s -> %s", command.c_str(), target.c_str());
-
-      // Build args object
-      JsonDocument argsDoc;
-      JsonObject args = argsDoc.to<JsonObject>();
-      if (doc.containsKey("args")) {
-        args = doc["args"].as<JsonObject>();
-      }
-
-      // Check if target is self
-      if (_swarmInstance->isCommandTargetMatch(target)) {
-        // Execute locally
-        JsonDocument resultDoc;
-        bool success = false;
-        String error = "";
-
-        if (_swarmInstance->commandHandlers.count(command)) {
-          String selfName = _swarmInstance->getNodeName();
-          resultDoc = _swarmInstance->commandHandlers[command](selfName, args);
-          success = true;
-        } else {
-          error = "Unknown command: " + command;
-        }
-
-        // Build response
-        JsonDocument responseDoc;
-        responseDoc["target"] = target;
-        responseDoc["command"] = command;
-        JsonArray responses = responseDoc["responses"].to<JsonArray>();
-        JsonObject resp = responses.add<JsonObject>();
-        resp["node"] = _swarmInstance->getNodeName();
-        resp["success"] = success;
-        if (success) {
-          resp["result"] = resultDoc;
-        } else {
-          resp["error"] = error;
-        }
-        responseDoc["timeout_nodes"] = JsonArray();
-
-        String responseStr;
-        serializeJson(responseDoc, responseStr);
-        request->send(200, "application/json", responseStr);
-        return;
-      }
-
-      // Generate request ID
-      String requestId = _swarmInstance->generateRequestId();
-
-      // For remote targets, send command and wait for response
-      _swarmInstance->sendCommand(target, command, args,
-        [request, requestId, target](bool success, const String& node, JsonObject& result) {
-          // Find matching pending request
-          for (auto it = _pendingHTTPRequests.begin(); it != _pendingHTTPRequests.end(); ++it) {
-            if (it->requestId == requestId) {
-              // Store response
-              JsonDocument respDoc;
-              respDoc["node"] = node;
-              respDoc["success"] = success;
-              if (success && !result.isNull()) {
-                respDoc["result"] = result;
-              }
-              it->responses.push_back(std::move(respDoc));
-
-              // For non-broadcast, respond immediately
-              if (!it->isBroadcast) {
-                JsonDocument responseDoc;
-                responseDoc["request_id"] = requestId;
-                responseDoc["target"] = target;
-                responseDoc["command"] = it->request ? "completed" : "";
-                JsonArray responses = responseDoc["responses"].to<JsonArray>();
-                for (auto& r : it->responses) {
-                  responses.add(r);
-                }
-                responseDoc["timeout_nodes"] = JsonArray();
-
-                String responseStr;
-                serializeJson(responseDoc, responseStr);
-
-                if (it->request) {
-                  it->request->send(200, "application/json", responseStr);
-                }
-                _pendingHTTPRequests.erase(it);
-              }
-              return;
-            }
-          }
-        }, timeout);
-
-      // Store pending request
-      PendingHTTPRequest pending;
-      pending.request = request;
-      pending.requestId = requestId;
-      pending.target = target;
-      pending.timestamp = millis();
-      pending.timeout = timeout;
-      pending.isBroadcast = (target == "*");
-      pending.expectedResponses = (target == "*") ? _swarmInstance->getPeerCount() : 1;
-      _pendingHTTPRequests.push_back(pending);
-
-      // For broadcast, we need to wait and collect responses
-      // The response will be sent when timeout occurs or all responses received
-      // For now, we'll handle timeout in the main loop
     });
+
+  // GET /api/result?id=xxx - Poll for command result by request_id
+  _httpServer->on("/api/result", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (_swarmInstance == nullptr) {
+      request->send(500, "application/json", "{\"error\":\"Server not initialized\"}");
+      return;
+    }
+
+    if (!request->hasParam("id")) {
+      request->send(400, "application/json", "{\"error\":\"Missing id parameter\"}");
+      return;
+    }
+
+    String requestId = request->getParam("id")->value();
+
+    auto it = _commandResults.find(requestId);
+    if (it == _commandResults.end()) {
+      request->send(404, "application/json", "{\"error\":\"Request ID not found\"}");
+      return;
+    }
+
+    CommandResult& result = it->second;
+
+    JsonDocument doc;
+    doc["request_id"] = result.requestId;
+    doc["target"] = result.target;
+    doc["command"] = result.command;
+    doc["status"] = result.status;
+
+    JsonArray responses = doc["responses"].to<JsonArray>();
+    for (auto& r : result.responses) {
+      responses.add(r);
+    }
+
+    // For broadcast, check if we've received expected responses or timed out
+    if (result.isBroadcast) {
+      doc["expected"] = result.expectedResponses;
+      doc["received"] = result.responses.size();
+    }
+
+    String response;
+    serializeJson(doc, response);
+    request->send(200, "application/json", response);
+
+    // If complete, remove from storage
+    if (result.status == "complete" || result.status == "timeout") {
+      _commandResults.erase(it);
+    }
+  });
 
   // GET /api/nodes - List all known nodes
   _httpServer->on("/api/nodes", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -298,6 +259,136 @@ void MeshSwarm::stopHTTPServer() {
   _swarmInstance = nullptr;
   httpServerRunning = false;
   HTTP_LOG("Server stopped");
+}
+
+// ============== COMMAND REQUEST HANDLER ==============
+void handleCommandRequest(AsyncWebServerRequest *request, uint8_t *data, size_t len) {
+  if (_swarmInstance == nullptr) {
+    request->send(500, "application/json", "{\"error\":\"Server not initialized\"}");
+    return;
+  }
+
+  // Parse JSON body
+  JsonDocument doc;
+  DeserializationError err = deserializeJson(doc, data, len);
+  if (err) {
+    request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  String target = doc["target"] | "";
+  String command = doc["command"] | "";
+  unsigned long timeout = doc["timeout"] | 5000;
+
+  if (target.length() == 0 || command.length() == 0) {
+    request->send(400, "application/json", "{\"error\":\"Missing target or command\"}");
+    return;
+  }
+
+  HTTP_LOG("API command: %s -> %s", command.c_str(), target.c_str());
+
+  // Build args object
+  JsonDocument argsDoc;
+  JsonObject args = argsDoc.to<JsonObject>();
+  if (doc["args"].is<JsonObject>()) {
+    args = doc["args"].as<JsonObject>();
+  }
+
+  // Check if target is self (gateway)
+  if (_swarmInstance->isCommandTargetMatch(target)) {
+    // Execute locally
+    JsonDocument resultDoc;
+    bool success = false;
+    String error = "";
+
+    if (_swarmInstance->commandHandlers.count(command)) {
+      String selfName = _swarmInstance->getNodeName();
+      resultDoc = _swarmInstance->commandHandlers[command](selfName, args);
+      success = true;
+    } else {
+      error = "Unknown command: " + command;
+    }
+
+    // Build response
+    JsonDocument responseDoc;
+    responseDoc["request_id"] = "local";
+    responseDoc["target"] = target;
+    responseDoc["command"] = command;
+    responseDoc["status"] = "complete";
+    JsonArray responses = responseDoc["responses"].to<JsonArray>();
+    JsonObject resp = responses.add<JsonObject>();
+    resp["node"] = _swarmInstance->getNodeName();
+    resp["success"] = success;
+    if (success) {
+      resp["result"] = resultDoc;
+    } else {
+      resp["error"] = error;
+    }
+
+    String responseStr;
+    serializeJson(responseDoc, responseStr);
+    request->send(200, "application/json", responseStr);
+    return;
+  }
+
+  // Clean up old results before adding new one
+  cleanupOldResults();
+
+  // Generate request ID for correlation
+  String requestId = _swarmInstance->generateRequestId();
+  bool isBroadcast = (target == "*");
+
+  // Create result entry for polling
+  CommandResult& result = _commandResults[requestId];
+  result.requestId = requestId;
+  result.target = target;
+  result.command = command;
+  result.status = "pending";
+  result.timestamp = millis();
+  result.timeout = timeout;
+  result.isBroadcast = isBroadcast;
+  result.expectedResponses = isBroadcast ? _swarmInstance->getPeerCount() : 1;
+
+  // Capture values for lambda
+  String ridCopy = requestId;
+
+  // Send command to mesh
+  _swarmInstance->sendCommand(target, command, args,
+    [ridCopy](bool success, const String& node, JsonObject& cmdResult) {
+      // Store the response
+      auto it = _commandResults.find(ridCopy);
+      if (it != _commandResults.end()) {
+        JsonDocument respDoc;
+        respDoc["node"] = node;
+        respDoc["success"] = success;
+        if (success && !cmdResult.isNull()) {
+          respDoc["result"] = cmdResult;
+        }
+        it->second.responses.push_back(std::move(respDoc));
+
+        // Mark complete for unicast, or when all broadcast responses received
+        if (!it->second.isBroadcast) {
+          it->second.status = "complete";
+        } else if ((int)it->second.responses.size() >= it->second.expectedResponses) {
+          it->second.status = "complete";
+        }
+
+        HTTP_LOG("CMD response stored: rid=%s node=%s (status=%s)",
+                 ridCopy.c_str(), node.c_str(), it->second.status.c_str());
+      }
+    }, timeout);
+
+  // Send immediate response with request_id for polling
+  JsonDocument responseDoc;
+  responseDoc["request_id"] = requestId;
+  responseDoc["target"] = target;
+  responseDoc["command"] = command;
+  responseDoc["status"] = "pending";
+  responseDoc["poll_url"] = "/api/result?id=" + requestId;
+
+  String responseStr;
+  serializeJson(responseDoc, responseStr);
+  request->send(202, "application/json", responseStr);
 }
 
 #endif // MESHSWARM_ENABLE_HTTP_SERVER
