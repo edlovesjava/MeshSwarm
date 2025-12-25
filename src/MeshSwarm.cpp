@@ -44,6 +44,9 @@ MeshSwarm::MeshSwarm()
     ,customStatus("")
 #endif
     ,commandIdCounter(0)
+#if MESHSWARM_ENABLE_HTTP_SERVER
+    ,httpServerRunning(false)
+#endif
 {
 #if MESHSWARM_ENABLE_OTA
   // Initialize OTA update info
@@ -582,3 +585,4 @@ String MeshSwarm::nodeIdToName(uint32_t id) {
 #include "features/MeshSwarmTelemetry.inc"
 #include "features/MeshSwarmOTA.inc"
 #include "features/MeshSwarmCommand.inc"
+#include "features/MeshSwarmHTTPServer.inc"

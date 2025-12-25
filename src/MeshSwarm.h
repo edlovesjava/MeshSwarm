@@ -37,6 +37,10 @@
 #include <HTTPClient.h>
 #endif
 
+#if MESHSWARM_ENABLE_HTTP_SERVER
+#include <ESPAsyncWebServer.h>
+#endif
+
 // ============== DEFAULT CONFIGURATION ==============
 // Override these before including MeshSwarm.h if needed
 
@@ -290,6 +294,13 @@ public:
                    CommandCallback callback, unsigned long timeout = 5000);
   void onCommand(const String& command, CommandHandler handler);
 
+#if MESHSWARM_ENABLE_HTTP_SERVER
+  // HTTP Server for gateway API
+  void startHTTPServer(uint16_t port = 80);
+  void stopHTTPServer();
+  bool isHTTPServerRunning() { return httpServerRunning; }
+#endif
+
 private:
   // Core objects
   painlessMesh mesh;
@@ -365,6 +376,11 @@ private:
   std::map<String, CommandHandler> commandHandlers;
   std::vector<PendingCommand> pendingCommands;
   uint32_t commandIdCounter;
+
+#if MESHSWARM_ENABLE_HTTP_SERVER
+  // HTTP Server state
+  bool httpServerRunning;
+#endif
 
   // Internal methods
   void initMesh(const char* prefix, const char* password, uint16_t port);

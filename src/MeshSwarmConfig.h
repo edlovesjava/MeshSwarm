@@ -57,6 +57,14 @@
 #define MESHSWARM_ENABLE_CALLBACKS 1
 #endif
 
+// HTTP Server for gateway API
+// Includes: REST API endpoints for remote command protocol (/api/command, /api/nodes)
+// Requires: ESPAsyncWebServer, AsyncTCP libraries
+// Flash savings when disabled: ~15-20KB
+#ifndef MESHSWARM_ENABLE_HTTP_SERVER
+#define MESHSWARM_ENABLE_HTTP_SERVER 1
+#endif
+
 // ============== FEATURE DEPENDENCY CHECKS ==============
 
 // Note: Callbacks are optional but enhance functionality when enabled with features
@@ -118,6 +126,7 @@
   #define OTA_LOG(fmt, ...) Serial.printf("[OTA] " fmt "\n", ##__VA_ARGS__)
   #define GATEWAY_LOG(fmt, ...) Serial.printf("[GATEWAY] " fmt "\n", ##__VA_ARGS__)
   #define CMD_LOG(fmt, ...) Serial.printf("[CMD] " fmt "\n", ##__VA_ARGS__)
+  #define HTTP_LOG(fmt, ...) Serial.printf("[HTTP] " fmt "\n", ##__VA_ARGS__)
 #else
   #define MESH_LOG(fmt, ...)
   #define STATE_LOG(fmt, ...)
@@ -125,6 +134,7 @@
   #define OTA_LOG(fmt, ...)
   #define GATEWAY_LOG(fmt, ...)
   #define CMD_LOG(fmt, ...)
+  #define HTTP_LOG(fmt, ...)
 #endif
 
 #if MESHSWARM_ENABLE_SERIAL && MESHSWARM_LOG_LEVEL >= MESHSWARM_LOG_DEBUG
@@ -133,12 +143,14 @@
   #define TELEM_LOG_D(fmt, ...) Serial.printf("[TELEM] " fmt "\n", ##__VA_ARGS__)
   #define OTA_LOG_D(fmt, ...) Serial.printf("[OTA] " fmt "\n", ##__VA_ARGS__)
   #define CMD_LOG_D(fmt, ...) Serial.printf("[CMD] " fmt "\n", ##__VA_ARGS__)
+  #define HTTP_LOG_D(fmt, ...) Serial.printf("[HTTP] " fmt "\n", ##__VA_ARGS__)
 #else
   #define MESH_LOG_D(fmt, ...)
   #define STATE_LOG_D(fmt, ...)
   #define TELEM_LOG_D(fmt, ...)
   #define OTA_LOG_D(fmt, ...)
   #define CMD_LOG_D(fmt, ...)
+  #define HTTP_LOG_D(fmt, ...)
 #endif
 
 // ============== COMPILE-TIME INFORMATION ==============
