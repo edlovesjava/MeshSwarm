@@ -382,6 +382,174 @@ void setup() {
 | `setGatewayMode(bool)` | Enable gateway mode |
 | `connectToWiFi(ssid, pass)` | Connect to WiFi (gateway only) |
 
+## Creating New Node Types
+
+This step-by-step guide explains how to create custom mesh nodes for different sensors, actuators, or displays.
+
+### Step 1: Choose Your Starting Point
+
+| If you want... | Start with... |
+|----------------|---------------|
+| Simple sensor/actuator | `MinimalNode` or `WatcherNode` |
+| Built-in OLED display | `BasicNode` |
+| Custom display (TFT, etc.) | `MinimalNode` with `MESHSWARM_ENABLE_DISPLAY 0` |
+| Gateway/server bridge | `GatewayNode` |
+
+### Step 2: Create Node Skeleton
+
+```cpp
+#include <MeshSwarm.h>
+
+MeshSwarm swarm;
+
+void setup() {
+  Serial.begin(115200);
+  swarm.begin("MyNodeName");  // Unique name for this node
+}
+
+void loop() {
+  swarm.update();  // Required - handles mesh communication
+}
+```
+
+### Step 3: Add Sensor (Publishing Data)
+
+To publish data from your node to the mesh:
+
+```cpp
+// In setup() - add periodic sensor reading
+swarm.onLoop([]() {
+  static unsigned long lastRead = 0;
+  if (millis() - lastRead < 5000) return;  // Read every 5 seconds
+  lastRead = millis();
+
+  float value = readMySensor();  // Your sensor reading code
+  swarm.setState("mykey", String(value, 1));  // Publish to mesh
+});
+```
+
+**Key points:**
+- Use `setState(key, value)` to publish - all nodes receive it automatically
+- Choose descriptive keys like `temp`, `motion`, `humidity`
+- Only publish when values change significantly to reduce network traffic
+
+### Step 4: Add Actuator (Consuming Data)
+
+To react to data from other nodes:
+
+```cpp
+// In setup() - register state watcher
+swarm.watchState("motion", [](const String& key, const String& value, const String& oldValue) {
+  if (value == "1") {
+    digitalWrite(LED_PIN, HIGH);  // React to motion
+  } else {
+    digitalWrite(LED_PIN, LOW);
+  }
+});
+```
+
+**Key points:**
+- Watchers are called automatically when state changes anywhere in mesh
+- Use `"*"` as key to watch ALL state changes
+- You can watch multiple keys by calling `watchState()` multiple times
+
+### Step 5: Using Custom Displays
+
+To use a different display (not the built-in SSD1306):
+
+```cpp
+// Disable MeshSwarm's built-in display BEFORE including
+#define MESHSWARM_ENABLE_DISPLAY 0
+#include <MeshSwarm.h>
+#include <YourDisplayLibrary.h>
+
+YourDisplay display;
+
+void setup() {
+  Serial.begin(115200);
+  display.begin();  // Initialize your display
+
+  swarm.begin("DisplayNode");
+
+  // Watch data you want to display
+  swarm.watchState("temp", [](const String& key, const String& value, const String& oldValue) {
+    display.clear();
+    display.print("Temp: " + value);
+    display.update();
+  });
+}
+```
+
+### Step 6: Add PlatformIO Environment (Optional)
+
+If using PlatformIO, add to `platformio.ini`:
+
+```ini
+[env:mynode]
+build_src_filter = +<mynode/>
+lib_deps =
+    ${env.lib_deps}
+    ; Add your sensor/display libraries here
+build_flags =
+    ${env.build_flags}
+    -DNODE_TYPE=\"mynode\"
+    -DNODE_NAME=\"MyNode\"
+    ; Add feature flags if needed
+    ; -DMESHSWARM_ENABLE_DISPLAY=0
+```
+
+### Complete Example: Clock Node with Custom TFT
+
+A clock node using a round TFT display that shows time and temperature from mesh:
+
+```cpp
+// Disable built-in display - we use our own TFT
+#define MESHSWARM_ENABLE_DISPLAY 0
+#include <MeshSwarm.h>
+#include <DIYables_TFT_Round.h>
+#include <time.h>
+
+MeshSwarm swarm;
+DIYables_TFT_GC9A01_Round tft(27, 25, 26);  // RST, DC, CS
+
+String meshTemp = "--";
+
+void setup() {
+  Serial.begin(115200);
+
+  tft.begin();
+  tft.fillScreen(0x0000);
+
+  swarm.begin("Clock");
+
+  // Watch temperature from DHT sensor nodes
+  swarm.watchState("temp", [](const String& key, const String& value, const String& oldValue) {
+    meshTemp = value;
+  });
+
+  // Configure NTP for time
+  configTime(-18000, 3600, "pool.ntp.org");  // EST timezone
+}
+
+void loop() {
+  swarm.update();
+  updateClockDisplay();  // Your display update code
+}
+```
+
+### Common Patterns
+
+| Pattern | Code |
+|---------|------|
+| Publish sensor value | `swarm.setState("temp", String(value, 1));` |
+| React to state change | `swarm.watchState("key", callback);` |
+| Watch all changes | `swarm.watchState("*", callback);` |
+| Custom serial command | `swarm.onSerialCommand(callback);` |
+| Periodic task | `swarm.onLoop(callback);` |
+| Get current state | `String v = swarm.getState("key");` |
+| Enable OTA updates | `swarm.enableOTAReceive("nodetype");` |
+| Enable telemetry | `swarm.enableTelemetry(true);` |
+
 ## Examples
 
 This library includes the following example sketches (File → Examples → MeshSwarm):
