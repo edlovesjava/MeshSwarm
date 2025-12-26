@@ -246,16 +246,12 @@ public:
   // Mesh access (for advanced usage)
   painlessMesh& getMesh() { return mesh; }
 
-#if MESHSWARM_ENABLE_CALLBACKS
-  // Customization hooks
-  void onLoop(LoopCallback callback);
-#if MESHSWARM_ENABLE_SERIAL
-  void onSerialCommand(SerialHandler handler);
-#endif
-#if MESHSWARM_ENABLE_DISPLAY
+  // Customization hooks (available even when callbacks are disabled; act as no-ops)
+  void onLoop(std::function<void()> callback);
+  void onSerialCommand(std::function<bool(const String&)> handler);
+#if MESHSWARM_ENABLE_CALLBACKS && MESHSWARM_ENABLE_DISPLAY
   void onDisplayUpdate(DisplayHandler handler);
 #endif
-#endif // MESHSWARM_ENABLE_CALLBACKS
 
 #if MESHSWARM_ENABLE_DISPLAY
   // Set custom status line for display
