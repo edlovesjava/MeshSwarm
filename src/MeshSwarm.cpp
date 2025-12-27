@@ -586,3 +586,10 @@ String MeshSwarm::nodeIdToName(uint32_t id) {
 #include "features/MeshSwarmOTA.inc"
 #include "features/MeshSwarmCommand.inc"
 #include "features/MeshSwarmHTTPServer.inc"
+
+// ============== HTTP SERVER (STUB) ==============
+// Placeholder to satisfy gateway builds. Real implementation will
+// use an HTTP server (e.g., AsyncWebServer) behind a feature flag.
+void MeshSwarm::startHTTPServer(uint16_t port) {
+  GATEWAY_LOG("HTTP server stub: requested port %u (not implemented)", port);
+}
