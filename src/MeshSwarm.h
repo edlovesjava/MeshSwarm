@@ -37,6 +37,10 @@
 #include <HTTPClient.h>
 #endif
 
+#if MESHSWARM_ENABLE_HTTP_SERVER
+#include <ESPAsyncWebServer.h>
+#endif
+
 // ============== DEFAULT CONFIGURATION ==============
 // Override these before including MeshSwarm.h if needed
 
@@ -120,12 +124,13 @@
 
 // ============== MESSAGE TYPES ==============
 enum MsgType {
-  MSG_HEARTBEAT  = 1,
-  MSG_STATE_SET  = 2,
-  MSG_STATE_SYNC = 3,
-  MSG_STATE_REQ  = 4,
-  MSG_COMMAND    = 5,
-  MSG_TELEMETRY  = 6   // Node telemetry to gateway
+  MSG_HEARTBEAT        = 1,
+  MSG_STATE_SET        = 2,
+  MSG_STATE_SYNC       = 3,
+  MSG_STATE_REQ        = 4,
+  MSG_COMMAND          = 5,
+  MSG_TELEMETRY        = 6,  // Node telemetry to gateway
+  MSG_COMMAND_RESPONSE = 7   // Response to remote command
 };
 
 // ============== DATA STRUCTURES ==============
@@ -179,8 +184,32 @@ typedef std::function<void(Adafruit_SSD1306& display, int startLine)> DisplayHan
 #endif
 #endif // MESHSWARM_ENABLE_CALLBACKS
 
+// ============== REMOTE COMMAND PROTOCOL ==============
+// Command response callback - receives result from remote node
+typedef std::function<void(bool success, const String& node, JsonObject& result)> CommandCallback;
+
+// Command handler - processes incoming commands, returns result
+typedef std::function<JsonDocument(const String& from, JsonObject& args)> CommandHandler;
+
+// Pending command request tracking
+struct PendingCommand {
+  String requestId;
+  String target;
+  String command;
+  CommandCallback callback;
+  unsigned long timestamp;
+  unsigned long timeout;
+  bool isBroadcast;
+  std::vector<String> respondedNodes;  // For broadcast: track which nodes responded
+};
+
 // ============== MESHSWARM CLASS ==============
 class MeshSwarm {
+#if MESHSWARM_ENABLE_HTTP_SERVER
+  // Friend function for HTTP command handler (needs access to private members)
+  friend void handleCommandRequest(AsyncWebServerRequest *request, uint8_t *data, size_t len);
+#endif
+
 public:
   MeshSwarm();
 
@@ -217,16 +246,12 @@ public:
   // Mesh access (for advanced usage)
   painlessMesh& getMesh() { return mesh; }
 
-#if MESHSWARM_ENABLE_CALLBACKS
-  // Customization hooks
-  void onLoop(LoopCallback callback);
-#if MESHSWARM_ENABLE_SERIAL
-  void onSerialCommand(SerialHandler handler);
-#endif
-#if MESHSWARM_ENABLE_DISPLAY
+  // Customization hooks (available even when callbacks are disabled; act as no-ops)
+  void onLoop(std::function<void()> callback);
+  void onSerialCommand(std::function<bool(const String&)> handler);
+#if MESHSWARM_ENABLE_CALLBACKS && MESHSWARM_ENABLE_DISPLAY
   void onDisplayUpdate(DisplayHandler handler);
 #endif
-#endif // MESHSWARM_ENABLE_CALLBACKS
 
 #if MESHSWARM_ENABLE_DISPLAY
   // Set custom status line for display
@@ -266,6 +291,20 @@ public:
   // OTA reception (node mode)
   void enableOTAReceive(const String& role);
 #endif // MESHSWARM_ENABLE_OTA
+
+  // Remote Command Protocol
+  void sendCommand(const String& target, const String& command);
+  void sendCommand(const String& target, const String& command, JsonObject& args);
+  void sendCommand(const String& target, const String& command, JsonObject& args,
+                   CommandCallback callback, unsigned long timeout = 5000);
+  void onCommand(const String& command, CommandHandler handler);
+
+#if MESHSWARM_ENABLE_HTTP_SERVER
+  // HTTP Server for gateway API
+  void startHTTPServer(uint16_t port = 80);
+  void stopHTTPServer();
+  bool isHTTPServerRunning() { return httpServerRunning; }
+#endif
 
 private:
   // Core objects
@@ -338,6 +377,16 @@ private:
   // Custom heartbeat data
   std::map<String, int> heartbeatExtras;
 
+  // Remote Command Protocol
+  std::map<String, CommandHandler> commandHandlers;
+  std::vector<PendingCommand> pendingCommands;
+  uint32_t commandIdCounter;
+
+#if MESHSWARM_ENABLE_HTTP_SERVER
+  // HTTP Server state
+  bool httpServerRunning;
+#endif
+
   // Internal methods
   void initMesh(const char* prefix, const char* password, uint16_t port);
 #if MESHSWARM_ENABLE_DISPLAY
@@ -371,6 +420,16 @@ private:
 
   String createMsg(MsgType type, JsonDocument& data);
   String nodeIdToName(uint32_t id);
+
+  // Remote Command Protocol helpers
+  String generateRequestId();
+  void handleCommand(uint32_t from, JsonObject& data);
+  void handleCommandResponse(uint32_t from, JsonObject& data);
+  void processCommandTimeouts();
+  void registerBuiltinCommands();
+  void sendCommandResponse(const String& target, const String& requestId,
+                           bool success, JsonDocument& result, const String& error = "");
+  bool isCommandTargetMatch(const String& target);
 
 #if MESHSWARM_ENABLE_OTA
   // OTA distribution methods (gateway)
