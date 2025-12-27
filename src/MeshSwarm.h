@@ -205,11 +205,6 @@ struct PendingCommand {
 
 // ============== MESHSWARM CLASS ==============
 class MeshSwarm {
-#if MESHSWARM_ENABLE_HTTP_SERVER
-  // Friend function for HTTP command handler (needs access to private members)
-  friend void handleCommandRequest(AsyncWebServerRequest *request, uint8_t *data, size_t len);
-#endif
-
 public:
   MeshSwarm();
 
@@ -304,6 +299,10 @@ public:
   void startHTTPServer(uint16_t port = 80);
   void stopHTTPServer();
   bool isHTTPServerRunning() { return httpServerRunning; }
+  
+  // Accessors for HTTP server (avoid friend function pattern)
+  const std::map<String, CommandHandler>& getCommandHandlers() const { return commandHandlers; }
+  const std::map<String, StateEntry>& getSharedState() const { return sharedState; }
 #endif
 
 private:
