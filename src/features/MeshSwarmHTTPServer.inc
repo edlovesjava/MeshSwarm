@@ -100,9 +100,10 @@ void MeshSwarm::startHTTPServer(uint16_t port) {
         bool success = false;
         String error = "";
 
-        if (_swarmInstance->commandHandlers.count(command)) {
+        const auto& handlers = _swarmInstance->getCommandHandlers();
+        if (handlers.count(command)) {
           String selfName = _swarmInstance->getNodeName();
-          resultDoc = _swarmInstance->commandHandlers[command](selfName, args);
+          resultDoc = handlers.at(command)(selfName, args);
           success = true;
         } else {
           error = "Unknown command: " + command;
@@ -233,14 +234,15 @@ void MeshSwarm::startHTTPServer(uint16_t port) {
     JsonDocument doc;
     JsonObject state = doc["state"].to<JsonObject>();
 
-    for (auto& kv : _swarmInstance->sharedState) {
+    const auto& sharedState = _swarmInstance->getSharedState();
+    for (auto& kv : sharedState) {
       JsonObject entry = state[kv.first].to<JsonObject>();
       entry["value"] = kv.second.value;
       entry["version"] = kv.second.version;
       entry["origin"] = _swarmInstance->nodeIdToName(kv.second.origin);
     }
 
-    doc["count"] = _swarmInstance->sharedState.size();
+    doc["count"] = sharedState.size();
 
     String response;
     serializeJson(doc, response);
@@ -265,7 +267,8 @@ void MeshSwarm::startHTTPServer(uint16_t port) {
 
     // List available commands
     JsonArray cmds = doc["commands"].to<JsonArray>();
-    for (auto& kv : _swarmInstance->commandHandlers) {
+    const auto& handlers = _swarmInstance->getCommandHandlers();
+    for (auto& kv : handlers) {
       cmds.add(kv.first);
     }
 
