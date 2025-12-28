@@ -275,7 +275,7 @@ public:
 
   // HTTP API server (gateway). Currently a stub to allow builds.
   // Future implementation will expose /api/nodes, /api/state, /api/command.
-  void startHTTPServer(uint16_t port = 80);
+  // void startHTTPServer(uint16_t port = 80);
 
 #if MESHSWARM_ENABLE_OTA
   // OTA distribution (gateway mode)
