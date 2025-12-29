@@ -273,10 +273,6 @@ public:
   bool isGateway() { return gatewayMode; }
 #endif // MESHSWARM_ENABLE_TELEMETRY
 
-  // HTTP API server (gateway). Currently a stub to allow builds.
-  // Future implementation will expose /api/nodes, /api/state, /api/command.
-  // void startHTTPServer(uint16_t port = 80);
-
 #if MESHSWARM_ENABLE_OTA
   // OTA distribution (gateway mode)
   void enableOTADistribution(bool enable);
@@ -294,12 +290,13 @@ public:
                    CommandCallback callback, unsigned long timeout = 5000);
   void onCommand(const String& command, CommandHandler handler);
 
-#if MESHSWARM_ENABLE_HTTP_SERVER
-  // HTTP Server for gateway API
+  // HTTP Server for gateway API (always declared, stubs when disabled)
   void startHTTPServer(uint16_t port = 80);
   void stopHTTPServer();
+
+#if MESHSWARM_ENABLE_HTTP_SERVER
   bool isHTTPServerRunning() { return httpServerRunning; }
-  
+
   // Accessors for HTTP server (avoid friend function pattern)
   const std::map<String, CommandHandler>& getCommandHandlers() const { return commandHandlers; }
   const std::map<String, StateEntry>& getSharedState() const { return sharedState; }
