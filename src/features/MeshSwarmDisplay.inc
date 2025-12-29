@@ -92,4 +92,15 @@ void MeshSwarm::setStatusLine(const String& status) {
   customStatus = status;
 }
 
+// ============== DISPLAY POWER MANAGEMENT ==============
+void MeshSwarm::enableDisplaySleep(unsigned long timeoutMs) {
+  powerManager.setOledDisplay(&display);
+  powerManager.begin(DisplayType::SSD1306_OLED);
+  powerManager.setSleepTimeout(timeoutMs);
+}
+
+void MeshSwarm::addDisplayWakeButton(uint8_t pin, bool activeLow) {
+  powerManager.addWakeButton(pin, activeLow);
+}
+
 #endif // MESHSWARM_ENABLE_DISPLAY
