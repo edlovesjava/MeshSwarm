@@ -58,13 +58,66 @@ Feature implementations use `.inc` extension to prevent Arduino from compiling t
 
 ```cpp
 enum MsgType {
-  MSG_HEARTBEAT  = 1,
-  MSG_STATE_SET  = 2,
-  MSG_STATE_SYNC = 3,
-  MSG_STATE_REQ  = 4,
-  MSG_COMMAND    = 5,  // NOT YET IMPLEMENTED
-  MSG_TELEMETRY  = 6
+  MSG_HEARTBEAT        = 1,
+  MSG_STATE_SET        = 2,
+  MSG_STATE_SYNC       = 3,
+  MSG_STATE_REQ        = 4,
+  MSG_COMMAND          = 5,
+  MSG_TELEMETRY        = 6,
+  MSG_COMMAND_RESPONSE = 7
 };
+```
+
+### Remote Command Protocol (RCP)
+
+The mesh supports sending commands to nodes and receiving responses:
+
+**Sending Commands:**
+```cpp
+// Send command with callback for response
+swarm.sendCommand("NodeName", "status", args, [](bool success, JsonObject& response) {
+  if (success) {
+    Serial.println("Got response!");
+  }
+});
+
+// Broadcast to all nodes
+swarm.sendCommand("*", "ping", args, callback);
+```
+
+**Registering Custom Command Handlers:**
+```cpp
+swarm.onCommand("sensor", [](const String& sender, JsonObject& args) {
+  JsonDocument response;
+  response["value"] = readSensor();
+  return response;
+});
+```
+
+**Built-in Commands (all nodes):**
+- `status` - Node info (ID, role, heap, uptime)
+- `peers` - List connected peers
+- `state` - Get all shared state
+- `get` - Get specific state key (args: `key`)
+- `set` - Set state key/value (args: `key`, `value`)
+- `sync` - Force state broadcast
+- `ping` - Connectivity test
+- `info` - Node capabilities
+- `reboot` - Restart node
+
+**Serial Command Interface:**
+```
+cmd <target> <command> [key=value ...]
+cmd * ping                    # Broadcast ping
+cmd Node1 status              # Get status from Node1
+cmd 12345678 get key=temp     # Get temp from node by ID
+```
+
+**Gateway HTTP API:**
+```
+POST /api/command  - Send command to node
+GET  /api/nodes    - List all mesh nodes
+GET  /api/state    - Get mesh state
 ```
 
 ## Development Guidelines
@@ -91,15 +144,12 @@ enum MsgType {
 
 See `WISHLIST.md` and `prd/` for planned features. Priority items:
 
-1. **Remote Command Protocol** (`prd/remote-command-protocol.md`)
-   - Implement MSG_COMMAND handling in `onReceive()`
-   - Add `sendCommand()` API
-   - Gateway HTTP API for external control
-
-2. **Persistent Node Configuration** (`prd/persistent-node-config.md`)
+1. **Persistent Node Configuration** (`prd/persistent-node-config.md`)
    - ESP32 Preferences/NVS storage
    - `setConfig()`/`getConfig()` API
    - Survives OTA updates
+
+*Note: Remote Command Protocol (RCP) is now implemented - see examples/CommandExample/*
 
 ## Common Tasks
 
@@ -123,6 +173,7 @@ get <k>   - Get state
 sync      - Broadcast state
 scan      - I2C scan (if display enabled)
 reboot    - Restart node
+cmd <target> <command> [args] - Send RCP command
 ```
 
 ## Related Repositories

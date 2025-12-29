@@ -91,6 +91,80 @@ void MeshSwarm::processSerial() {
   else if (input == "reboot") {
     ESP.restart();
   }
+  else if (input.startsWith("cmd ")) {
+    // Remote command: cmd <target> <command> [key=value ...]
+    // Examples:
+    //   cmd N1234 status
+    //   cmd N5678 set key=led value=on
+    //   cmd * ping
+    String rest = input.substring(4);
+    rest.trim();
+
+    int firstSpace = rest.indexOf(' ');
+    if (firstSpace < 0) {
+      Serial.println("Usage: cmd <target> <command> [key=value ...]");
+      Serial.println("Examples:");
+      Serial.println("  cmd N1234 status");
+      Serial.println("  cmd N5678 set key=led value=on");
+      Serial.println("  cmd * ping");
+    } else {
+      String target = rest.substring(0, firstSpace);
+      String cmdRest = rest.substring(firstSpace + 1);
+      cmdRest.trim();
+
+      int secondSpace = cmdRest.indexOf(' ');
+      String command;
+      String argsStr;
+
+      if (secondSpace < 0) {
+        command = cmdRest;
+        argsStr = "";
+      } else {
+        command = cmdRest.substring(0, secondSpace);
+        argsStr = cmdRest.substring(secondSpace + 1);
+      }
+
+      // Parse key=value pairs into args
+      JsonDocument argsDoc;
+      JsonObject args = argsDoc.to<JsonObject>();
+
+      if (argsStr.length() > 0) {
+        // Split by spaces and parse key=value
+        int pos = 0;
+        while (pos < (int)argsStr.length()) {
+          int nextSpace = argsStr.indexOf(' ', pos);
+          String pair;
+          if (nextSpace < 0) {
+            pair = argsStr.substring(pos);
+            pos = argsStr.length();
+          } else {
+            pair = argsStr.substring(pos, nextSpace);
+            pos = nextSpace + 1;
+          }
+
+          int eqPos = pair.indexOf('=');
+          if (eqPos > 0) {
+            String key = pair.substring(0, eqPos);
+            String value = pair.substring(eqPos + 1);
+            args[key] = value;
+          }
+        }
+      }
+
+      Serial.printf("[CMD] Sending '%s' to %s\n", command.c_str(), target.c_str());
+
+      // Send command with callback to print response
+      sendCommand(target, command, args, [](bool success, const String& node, JsonObject& result) {
+        if (success) {
+          Serial.printf("\n[CMD] Response from %s:\n", node.c_str());
+          serializeJsonPretty(result, Serial);
+          Serial.println("\n");
+        } else {
+          Serial.printf("\n[CMD] Failed or timeout for %s\n", node.c_str());
+        }
+      }, 5000);
+    }
+  }
 #if MESHSWARM_ENABLE_TELEMETRY
   else if (input == "telem") {
     Serial.println("\n--- TELEMETRY STATUS ---");
@@ -118,11 +192,12 @@ void MeshSwarm::processSerial() {
   }
 #endif
   else {
-    Serial.println("Commands: status, peers, state, set <k> <v>, get <k>, sync, scan"
+    Serial.println("Commands: status, peers, state, set <k> <v>, get <k>, sync, scan");
+    Serial.println("          cmd <target> <command> [args...]");
 #if MESHSWARM_ENABLE_TELEMETRY
-      ", telem, push"
+    Serial.println("          telem, push");
 #endif
-      ", reboot");
+    Serial.println("          reboot");
   }
 }
 
