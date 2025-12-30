@@ -77,6 +77,11 @@ void DisplayPowerManager::enableWakeOnStateChange(bool enable) {
 // ============== Runtime ==============
 
 void DisplayPowerManager::update() {
+    // Only run if display manager was initialized
+    if (_type == DisplayType::NONE) {
+        return;
+    }
+
     // Poll wake buttons
     pollWakeButtons();
 
