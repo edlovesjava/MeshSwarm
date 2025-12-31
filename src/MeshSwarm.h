@@ -31,6 +31,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include "DisplayPowerManager.h"
 #endif
 
 #if MESHSWARM_ENABLE_TELEMETRY || MESHSWARM_ENABLE_OTA
@@ -212,6 +213,11 @@ public:
 #if MESHSWARM_ENABLE_DISPLAY
   // Display access
   Adafruit_SSD1306& getDisplay() { return display; }
+
+  // Display power management
+  DisplayPowerManager& getPowerManager() { return powerManager; }
+  void enableDisplaySleep(unsigned long timeoutMs = 30000);
+  void addDisplayWakeButton(uint8_t pin, bool activeLow = true);
 #endif
 
   // Mesh access (for advanced usage)
@@ -273,6 +279,7 @@ private:
 
 #if MESHSWARM_ENABLE_DISPLAY
   Adafruit_SSD1306 display;
+  DisplayPowerManager powerManager;
 #endif
 
   // State

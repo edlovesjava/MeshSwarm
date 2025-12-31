@@ -140,8 +140,11 @@ void MeshSwarm::update() {
   }
 
 #if MESHSWARM_ENABLE_DISPLAY
-  // Display update
-  if (now - lastDisplayUpdate >= DISPLAY_INTERVAL) {
+  // Display power manager update (polls buttons, checks timeout)
+  powerManager.update();
+
+  // Display update (skip if display is sleeping)
+  if (!powerManager.isAsleep() && (now - lastDisplayUpdate >= DISPLAY_INTERVAL)) {
     updateDisplay();
     lastDisplayUpdate = now;
   }

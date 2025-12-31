@@ -1,10 +1,12 @@
 /**
- * ButtonNode - Button input with shared state
+ * ButtonNode - Button input with shared state and display sleep/wake
  *
  * Demonstrates:
  * - Reading button input
  * - Publishing state to mesh
  * - Using onLoop callback
+ * - Display sleep after timeout (using DisplayPowerManager)
+ * - Instant wake on button press
  *
  * Hardware:
  * - ESP32
@@ -16,12 +18,59 @@
 
 MeshSwarm swarm;
 
+// ============== BUTTON CONFIGURATION ==============
+#ifndef BUTTON_PIN
 #define BUTTON_PIN 0
+#endif
 
+#ifndef DEBOUNCE_MS
+#define DEBOUNCE_MS 50
+#endif
+
+// ============== DISPLAY SLEEP CONFIGURATION ==============
+#ifndef DISPLAY_SLEEP_TIMEOUT_MS
+#define DISPLAY_SLEEP_TIMEOUT_MS 15000  // Sleep after 15 seconds of inactivity
+#endif
+
+#ifndef DISPLAY_WAKE_ON_STATE_CHANGE
+#define DISPLAY_WAKE_ON_STATE_CHANGE 0  // Default: don't wake on state change
+#endif
+
+// ============== BUTTON STATE ==============
 bool lastButtonState = HIGH;
 unsigned long lastDebounceTime = 0;
-const unsigned long debounceDelay = 50;
 
+// ============== BUTTON HANDLING ==============
+void handleButton() {
+  bool reading = digitalRead(BUTTON_PIN);
+
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > DEBOUNCE_MS) {
+    static bool buttonState = HIGH;
+    if (reading != buttonState) {
+      buttonState = reading;
+
+      if (buttonState == LOW) {
+        // Reset activity on button press (wakes display if sleeping)
+        swarm.getPowerManager().resetActivity();
+
+        // Publish button state to mesh
+        swarm.setState("button", "1");
+        Serial.println("Button: pressed");
+      } else {
+        swarm.setState("button", "0");
+        Serial.println("Button: released");
+      }
+    }
+  }
+
+  lastButtonState = reading;
+}
+
+// ============== SETUP ==============
 void setup() {
   Serial.begin(115200);
 
@@ -29,31 +78,29 @@ void setup() {
 
   swarm.begin("Button");
 
-  // Register custom loop logic
-  swarm.onLoop([]() {
-    bool reading = digitalRead(BUTTON_PIN);
+  // Enable display sleep with timeout
+  swarm.enableDisplaySleep(DISPLAY_SLEEP_TIMEOUT_MS);
 
-    if (reading != lastButtonState) {
-      lastDebounceTime = millis();
-    }
+  // Add button as wake source (in addition to handleButton's resetActivity)
+  swarm.addDisplayWakeButton(BUTTON_PIN);
 
-    if ((millis() - lastDebounceTime) > debounceDelay) {
-      static bool buttonState = HIGH;
-      if (reading != buttonState) {
-        buttonState = reading;
+  // Register button handling
+  swarm.onLoop(handleButton);
 
-        // Publish button state to mesh
-        swarm.setState("button", buttonState == LOW ? "1" : "0");
-        Serial.printf("Button: %s\n", buttonState == LOW ? "pressed" : "released");
-      }
-    }
-
-    lastButtonState = reading;
+  // Optional: Wake on state changes
+  #if DISPLAY_WAKE_ON_STATE_CHANGE
+  swarm.getPowerManager().enableWakeOnStateChange(true);
+  swarm.watchState("*", [](const String& key, const String& value, const String& oldValue) {
+    swarm.getPowerManager().resetActivity();
   });
+  #endif
 
   Serial.println("ButtonNode started");
+  Serial.printf("[CONFIG] Display sleep timeout: %d ms\n", DISPLAY_SLEEP_TIMEOUT_MS);
+  Serial.printf("[CONFIG] Wake on state change: %s\n", DISPLAY_WAKE_ON_STATE_CHANGE ? "enabled" : "disabled");
 }
 
+// ============== MAIN LOOP ==============
 void loop() {
   swarm.update();
 }
