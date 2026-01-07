@@ -23,6 +23,7 @@ A self-organizing ESP32 mesh network library with distributed shared state synch
 - **Telemetry**: Send metrics to server via gateway node *(optional)*
 - **OLED display**: Built-in support for SSD1306 128x64 displays *(optional)*
 - **Serial console**: Built-in command interface for debugging and control *(optional)*
+- **Remote commands**: Send commands to nodes and receive responses via RCP
 - **Modular architecture**: Disable unused features to reduce flash usage by up to 65KB
 
 ## Modular Build System
@@ -297,6 +298,85 @@ Override defaults before including the library:
 | `get <key>` | Get a shared state value |
 | `sync` | Broadcast full state to all nodes |
 | `reboot` | Restart the node |
+| `cmd <target> <command> [key=value ...]` | Send remote command |
+
+## Remote Command Protocol (RCP)
+
+Send commands to nodes and receive responses across the mesh network.
+
+### Sending Commands
+
+```cpp
+// Send command with callback for response
+JsonDocument doc;
+JsonObject args = doc.to<JsonObject>();
+args["key"] = "temp";
+
+swarm.sendCommand("SensorNode", "get", args, [](bool success, JsonObject& response) {
+  if (success) {
+    String value = response["value"] | "unknown";
+    Serial.printf("Got value: %s\n", value.c_str());
+  }
+});
+
+// Broadcast to all nodes (use "*" as target)
+swarm.sendCommand("*", "ping", args, callback, 3000);  // 3 second timeout
+```
+
+### Registering Custom Command Handlers
+
+```cpp
+// Register handler in setup()
+swarm.onCommand("sensor", [](const String& sender, JsonObject& args) {
+  JsonDocument response;
+  response["value"] = readSensor();
+  response["unit"] = "celsius";
+  return response;
+});
+```
+
+### Built-in Commands
+
+All nodes respond to these commands:
+
+| Command | Description | Arguments |
+|---------|-------------|-----------|
+| `status` | Node info (ID, role, heap, uptime) | - |
+| `peers` | List connected peers | - |
+| `state` | Get all shared state | - |
+| `get` | Get specific state key | `key` |
+| `set` | Set state key/value | `key`, `value` |
+| `sync` | Force state broadcast | - |
+| `ping` | Connectivity test | - |
+| `info` | Node capabilities | - |
+| `reboot` | Restart node | - |
+
+### Serial Command Interface
+
+```bash
+# Send commands via serial monitor
+cmd * ping                      # Ping all nodes (broadcast)
+cmd SensorNode status           # Get status from SensorNode
+cmd 12345678 get key=temp       # Get temp from node by ID
+cmd * set key=led value=1       # Set LED on all nodes
+```
+
+### Gateway HTTP API
+
+When using a gateway node, commands can be sent via HTTP:
+
+```bash
+# Send command to node
+curl -X POST http://gateway/api/command \
+  -H "Content-Type: application/json" \
+  -d '{"target":"SensorNode","command":"status"}'
+
+# List all nodes
+curl http://gateway/api/nodes
+
+# Get mesh state
+curl http://gateway/api/state
+```
 
 ## State Conflict Resolution
 
@@ -564,6 +644,7 @@ This library includes the following example sketches (File → Examples → Mesh
 | **SensorNode** | DHT11 temperature/humidity sensor |
 | **WatcherNode** | Observer that logs all state changes |
 | **GatewayNode** | WiFi bridge with telemetry and OTA |
+| **CommandExample** | Remote Command Protocol demo with custom handlers |
 
 ## Sample image of nodes
 

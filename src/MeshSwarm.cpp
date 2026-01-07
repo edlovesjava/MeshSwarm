@@ -43,6 +43,10 @@ MeshSwarm::MeshSwarm()
     ,lastStateChange("")
     ,customStatus("")
 #endif
+    ,commandIdCounter(0)
+#if MESHSWARM_ENABLE_HTTP_SERVER
+    ,httpServerRunning(false)
+#endif
 {
 #if MESHSWARM_ENABLE_OTA
   // Initialize OTA update info
@@ -85,6 +89,9 @@ void MeshSwarm::begin(const char* prefix, const char* password, uint16_t port, c
   myId = mesh.getNodeId();
   myName = nodeName ? String(nodeName) : nodeIdToName(myId);
   bootTime = millis();
+
+  // Register built-in remote commands
+  registerBuiltinCommands();
 
   MESH_LOG("Node ID: %u", myId);
   MESH_LOG("Name: %s", myName.c_str());
@@ -170,6 +177,9 @@ void MeshSwarm::update() {
     processSerial();
   }
 #endif
+
+  // Process command timeouts
+  processCommandTimeouts();
 
 #if MESHSWARM_ENABLE_CALLBACKS
   // Custom loop callbacks
@@ -444,6 +454,11 @@ void MeshSwarm::onReceive(uint32_t from, String &msg) {
       break;
 
     case MSG_COMMAND:
+      handleCommand(from, data);
+      break;
+
+    case MSG_COMMAND_RESPONSE:
+      handleCommandResponse(from, data);
       break;
 
 #if MESHSWARM_ENABLE_TELEMETRY
@@ -572,10 +587,17 @@ String MeshSwarm::nodeIdToName(uint32_t id) {
 #include "features/MeshSwarmHTTP.inc"
 #include "features/MeshSwarmTelemetry.inc"
 #include "features/MeshSwarmOTA.inc"
+#include "features/MeshSwarmCommand.inc"
+#include "features/MeshSwarmHTTPServer.inc"
 
 // ============== HTTP SERVER (STUB) ==============
-// Placeholder to satisfy gateway builds. Real implementation will
-// use an HTTP server (e.g., AsyncWebServer) behind a feature flag.
+// Placeholder when HTTP server feature is disabled
+#if !MESHSWARM_ENABLE_HTTP_SERVER
 void MeshSwarm::startHTTPServer(uint16_t port) {
-  GATEWAY_LOG("HTTP server stub: requested port %u (not implemented)", port);
+  GATEWAY_LOG("HTTP server not enabled: requested port %u", port);
 }
+
+void MeshSwarm::stopHTTPServer() {
+  // No-op when HTTP server is disabled
+}
+#endif
